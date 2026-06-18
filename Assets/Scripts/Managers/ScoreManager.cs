@@ -38,6 +38,11 @@ public class ScoreManager : MonoBehaviour
 
     public void RegisterShot()
     {
+        if (!CanRegisterStats())
+        {
+            return;
+        }
+
         ShotsFired++;
         UpdateAccuracy();
         NotifyStatsChanged();
@@ -45,6 +50,11 @@ public class ScoreManager : MonoBehaviour
 
     public void RegisterHit(float reactionTime)
     {
+        if (!CanRegisterStats())
+        {
+            return;
+        }
+
         Hits++;
         totalReactionTime += reactionTime;
         AverageReactionTime = totalReactionTime / Hits;
@@ -57,6 +67,11 @@ public class ScoreManager : MonoBehaviour
 
     public void RegisterMiss()
     {
+        if (!CanRegisterStats())
+        {
+            return;
+        }
+
         Misses++;
         UpdateAccuracy();
         NotifyStatsChanged();
@@ -72,6 +87,12 @@ public class ScoreManager : MonoBehaviour
     private void UpdateAccuracy()
     {
         AccuracyPercentage = ShotsFired > 0 ? (float)Hits / ShotsFired * 100f : 0f;
+    }
+
+    private bool CanRegisterStats()
+    {
+        // If there is no SessionManager in the scene, keep the old free-play behavior.
+        return SessionManager.Instance == null || SessionManager.Instance.IsSessionActive;
     }
 
     private void LogStats()

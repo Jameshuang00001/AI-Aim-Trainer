@@ -35,6 +35,11 @@ public class Gun : MonoBehaviour
 
     private void Shoot()
     {
+        if (SessionManager.Instance != null && !SessionManager.Instance.IsSessionActive)
+        {
+            return;
+        }
+
         nextFireTime = Time.time + 1f / fireRate;
         ShotsFired++;
 

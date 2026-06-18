@@ -18,6 +18,12 @@ public class TargetSpawner : MonoBehaviour
     [SerializeField] private float maxDistance = 20f;
     [SerializeField] private int maxActiveTargets = 5;
 
+    [Header("Moving Targets")]
+    [SerializeField] private bool enableMovingTargets;
+    [SerializeField] private TargetMovement.MovementType defaultMovementType = TargetMovement.MovementType.Horizontal;
+    [SerializeField] private float defaultMovementSpeed = 2f;
+    [SerializeField] private float defaultMovementDistance = 2f;
+
     private readonly List<Target> activeTargets = new List<Target>();
     private float nextSpawnTime;
 
@@ -33,6 +39,11 @@ public class TargetSpawner : MonoBehaviour
     {
         RemoveDestroyedTargets();
 
+        if (SessionManager.Instance != null && !SessionManager.Instance.IsSessionActive)
+        {
+            return;
+        }
+
         if (Time.time >= nextSpawnTime && activeTargets.Count < maxActiveTargets)
         {
             SpawnTarget();
@@ -42,6 +53,11 @@ public class TargetSpawner : MonoBehaviour
 
     private void SpawnTarget()
     {
+        if (SessionManager.Instance != null && !SessionManager.Instance.IsSessionActive)
+        {
+            return;
+        }
+
         if (playerTransform == null)
         {
             Debug.LogWarning("TargetSpawner needs a player transform or main camera before it can spawn targets.");
@@ -69,7 +85,24 @@ public class TargetSpawner : MonoBehaviour
             target = targetObject.AddComponent<Target>();
         }
 
+        AddMovementIfNeeded(targetObject);
         activeTargets.Add(target);
+    }
+
+    private void AddMovementIfNeeded(GameObject targetObject)
+    {
+        if (!enableMovingTargets)
+        {
+            return;
+        }
+
+        TargetMovement targetMovement = targetObject.GetComponent<TargetMovement>();
+        if (targetMovement == null)
+        {
+            targetMovement = targetObject.AddComponent<TargetMovement>();
+        }
+
+        targetMovement.Configure(defaultMovementType, defaultMovementSpeed, defaultMovementDistance);
     }
 
     private Vector3 GetRandomPositionInFrontOfPlayer()
@@ -93,5 +126,18 @@ public class TargetSpawner : MonoBehaviour
                 activeTargets.RemoveAt(i);
             }
         }
+    }
+
+    public void DestroyActiveTargets()
+    {
+        for (int i = activeTargets.Count - 1; i >= 0; i--)
+        {
+            if (activeTargets[i] != null)
+            {
+                Destroy(activeTargets[i].gameObject);
+            }
+        }
+
+        activeTargets.Clear();
     }
 }

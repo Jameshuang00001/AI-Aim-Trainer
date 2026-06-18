@@ -8,12 +8,13 @@ using UnityEngine.UI;
 /// Scene setup:
 /// 1. Create a Canvas: GameObject > UI > Canvas.
 /// 2. On the Canvas, add UI Text objects for Shots, Hits, Misses, Accuracy, and Average Reaction Time.
-/// 3. Add this UIManager script to the Canvas or to an empty "UIManager" GameObject.
-/// 4. Drag each Text object into the matching fields in the Inspector.
-/// 5. For a crosshair, create either:
+/// 3. Optional for Phase 3: add Text objects for Session Time and Session Complete.
+/// 4. Add this UIManager script to the Canvas or to an empty "UIManager" GameObject.
+/// 5. Drag each Text object into the matching fields in the Inspector.
+/// 6. For a crosshair, create either:
 ///    - UI > Text with "+" centered on the screen, then assign it to Crosshair Text, or
 ///    - UI > Image centered on the screen, then assign it to Crosshair Image.
-/// 6. Optional: create a small centered Text such as "HIT" and assign it to Hit Feedback Text.
+/// 7. Optional: create a small centered Text such as "HIT" and assign it to Hit Feedback Text.
 ///
 /// This uses UnityEngine.UI.Text for Unity 2022.3 compatibility and does not require TextMeshPro.
 /// </summary>
@@ -25,6 +26,10 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Text missesText;
     [SerializeField] private Text accuracyText;
     [SerializeField] private Text averageReactionTimeText;
+
+    [Header("Session Text")]
+    [SerializeField] private Text sessionTimeText;
+    [SerializeField] private Text sessionCompleteText;
 
     [Header("Crosshair")]
     [SerializeField] private Text crosshairText;
@@ -40,12 +45,20 @@ public class UIManager : MonoBehaviour
     {
         CreateDefaultCrosshairIfNeeded();
         HideHitFeedback();
+        SetSessionCompleteVisible(false);
 
         if (ScoreManager.Instance != null)
         {
             ScoreManager.Instance.SetUIManager(this);
             RefreshStats(ScoreManager.Instance);
         }
+
+        RefreshSession();
+    }
+
+    private void Update()
+    {
+        RefreshSession();
     }
 
     public void RefreshStats(ScoreManager scoreManager)
@@ -96,6 +109,51 @@ public class UIManager : MonoBehaviour
         {
             hitFeedbackText.enabled = false;
         }
+    }
+
+    private void RefreshSession()
+    {
+        SessionManager sessionManager = SessionManager.Instance;
+
+        if (sessionManager == null)
+        {
+            SetText(sessionTimeText, "Time: --");
+            SetSessionCompleteVisible(false);
+            return;
+        }
+
+        SetText(sessionTimeText, $"Time: {Mathf.CeilToInt(sessionManager.RemainingTime)}");
+
+        if (sessionManager.IsSessionComplete)
+        {
+            ShowSessionComplete();
+        }
+        else
+        {
+            SetSessionCompleteVisible(false);
+        }
+    }
+
+    public void ShowSessionComplete()
+    {
+        if (sessionCompleteText == null)
+        {
+            return;
+        }
+
+        sessionCompleteText.text = "SESSION COMPLETE\nPress R to Restart";
+        SetSessionCompleteVisible(true);
+    }
+
+    private void SetSessionCompleteVisible(bool isVisible)
+    {
+        if (sessionCompleteText == null)
+        {
+            return;
+        }
+
+        sessionCompleteText.gameObject.SetActive(isVisible);
+        sessionCompleteText.enabled = isVisible;
     }
 
     private void SetText(Text textComponent, string value)

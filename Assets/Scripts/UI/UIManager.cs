@@ -31,6 +31,10 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Text sessionTimeText;
     [SerializeField] private Text sessionCompleteText;
 
+    [Header("Training Mode")]
+    [SerializeField] private Text trainingModeText;
+    [SerializeField] private Text modeInstructionText;
+
     [Header("Crosshair")]
     [SerializeField] private Text crosshairText;
     [SerializeField] private Image crosshairImage;
@@ -59,6 +63,32 @@ public class UIManager : MonoBehaviour
     private void Update()
     {
         RefreshSession();
+        RefreshMode();
+    }
+
+    private void RefreshMode()
+    {
+        AimTrainingMode mode = GameModeManager.Instance != null
+            ? GameModeManager.Instance.CurrentMode : AimTrainingMode.StaticTargets;
+        switch (mode)
+        {
+            case AimTrainingMode.MovingTargets:
+                SetText(trainingModeText, "Mode: Moving Targets");
+                SetText(modeInstructionText, "Track and hit moving targets.");
+                break;
+            case AimTrainingMode.FlickTargets:
+                SetText(trainingModeText, "Mode: Flick Targets");
+                SetText(modeInstructionText, "Flick to each new target.");
+                break;
+            case AimTrainingMode.ReactionTargets:
+                SetText(trainingModeText, "Mode: Reaction Targets");
+                SetText(modeInstructionText, "Wait for red, then shoot. Gray hits count as misses.");
+                break;
+            default:
+                SetText(trainingModeText, "Mode: Static Targets");
+                SetText(modeInstructionText, "Hit stationary targets accurately.");
+                break;
+        }
     }
 
     public void RefreshStats(ScoreManager scoreManager)

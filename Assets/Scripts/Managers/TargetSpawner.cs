@@ -19,10 +19,17 @@ public class TargetSpawner : MonoBehaviour
     [SerializeField] private int maxActiveTargets = 5;
 
     [Header("Moving Targets")]
-    [SerializeField] private bool enableMovingTargets;
     [SerializeField] private TargetMovement.MovementType defaultMovementType = TargetMovement.MovementType.Horizontal;
     [SerializeField] private float defaultMovementSpeed = 2f;
     [SerializeField] private float defaultMovementDistance = 2f;
+
+    [Header("Mode Settings")]
+    [SerializeField, Min(0f)] private float flickSpawnDelay = 0.1f;
+    [SerializeField, Min(0f)] private float minReactionDelay = 0.5f;
+    [SerializeField, Min(0f)] private float maxReactionDelay = 2f;
+
+    private AimTrainingMode CurrentMode => GameModeManager.Instance != null
+        ? GameModeManager.Instance.CurrentMode : AimTrainingMode.StaticTargets;
 
     private readonly List<Target> activeTargets = new List<Target>();
     private float nextSpawnTime;
@@ -44,7 +51,8 @@ public class TargetSpawner : MonoBehaviour
             return;
         }
 
-        if (Time.time >= nextSpawnTime && activeTargets.Count < maxActiveTargets)
+        int targetLimit = CurrentMode == AimTrainingMode.FlickTargets ? 1 : maxActiveTargets;
+        if (Time.time >= nextSpawnTime && activeTargets.Count < targetLimit)
         {
             SpawnTarget();
             nextSpawnTime = Time.time + spawnInterval;
@@ -86,13 +94,21 @@ public class TargetSpawner : MonoBehaviour
         }
 
         AddMovementIfNeeded(targetObject);
+        target.Configure(CurrentMode, Random.Range(minReactionDelay,
+            Mathf.Max(minReactionDelay, maxReactionDelay)));
+        target.HitRegistered += OnTargetHit;
         activeTargets.Add(target);
     }
 
     private void AddMovementIfNeeded(GameObject targetObject)
     {
-        if (!enableMovingTargets)
+        if (CurrentMode != AimTrainingMode.MovingTargets)
         {
+            // Disable movement already present on a prefab in stationary modes.
+            foreach (TargetMovement movement in targetObject.GetComponentsInChildren<TargetMovement>(true))
+            {
+                movement.enabled = false;
+            }
             return;
         }
 
@@ -103,6 +119,17 @@ public class TargetSpawner : MonoBehaviour
         }
 
         targetMovement.Configure(defaultMovementType, defaultMovementSpeed, defaultMovementDistance);
+        targetMovement.enabled = true;
+    }
+
+    private void OnTargetHit(Target target)
+    {
+        target.HitRegistered -= OnTargetHit;
+        activeTargets.Remove(target);
+        if (CurrentMode == AimTrainingMode.FlickTargets)
+        {
+            nextSpawnTime = Time.time + flickSpawnDelay;
+        }
     }
 
     private Vector3 GetRandomPositionInFrontOfPlayer()
@@ -134,6 +161,7 @@ public class TargetSpawner : MonoBehaviour
         {
             if (activeTargets[i] != null)
             {
+                activeTargets[i].HitRegistered -= OnTargetHit;
                 Destroy(activeTargets[i].gameObject);
             }
         }

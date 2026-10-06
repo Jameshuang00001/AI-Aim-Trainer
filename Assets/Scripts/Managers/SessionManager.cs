@@ -67,6 +67,8 @@ public class SessionManager : MonoBehaviour
         IsSessionActive = true;
         IsSessionComplete = false;
 
+        if (uiManager != null) uiManager.HideSummaryPanel();
+
         Debug.Log($"Session started. Duration: {sessionDuration:F0} seconds.");
     }
 

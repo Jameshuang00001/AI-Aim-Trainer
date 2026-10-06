@@ -75,6 +75,7 @@ public class ScoreManager : MonoBehaviour
         Misses++;
         UpdateAccuracy();
         NotifyStatsChanged();
+        if (uiManager != null) uiManager.ShowMissFeedback();
         LogStats();
     }
 

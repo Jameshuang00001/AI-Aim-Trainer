@@ -31,6 +31,17 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Text sessionTimeText;
     [SerializeField] private Text sessionCompleteText;
 
+    [Header("Session Summary")]
+    [SerializeField] private GameObject summaryPanel;
+    [SerializeField] private Text summaryText;
+
+    [Header("Miss Feedback")]
+    [SerializeField] private Text missFeedbackText;
+    [SerializeField, Min(0f)] private float missFeedbackDuration = 0.2f;
+
+    private Coroutine missFeedbackRoutine;
+    private bool summaryShown;
+
     [Header("Training Mode")]
     [SerializeField] private Text trainingModeText;
     [SerializeField] private Text modeInstructionText;
@@ -49,6 +60,8 @@ public class UIManager : MonoBehaviour
     {
         CreateDefaultCrosshairIfNeeded();
         HideHitFeedback();
+        HideSummaryPanel();
+        if (missFeedbackText != null) missFeedbackText.enabled = false;
         SetSessionCompleteVisible(false);
 
         if (ScoreManager.Instance != null)
@@ -107,6 +120,7 @@ public class UIManager : MonoBehaviour
 
     public void ShowHitFeedback(float reactionTime)
     {
+        ClearMissFeedback();
         Debug.Log($"Hit feedback triggered. Reaction time: {reactionTime:F3}s");
 
         if (hitFeedbackText == null)
@@ -120,6 +134,33 @@ public class UIManager : MonoBehaviour
         }
 
         hitFeedbackRoutine = StartCoroutine(ShowHitFeedbackRoutine(reactionTime));
+    }
+
+    public void ShowMissFeedback()
+    {
+        if (summaryShown || missFeedbackText == null) return;
+        if (hitFeedbackRoutine != null) StopCoroutine(hitFeedbackRoutine);
+        hitFeedbackRoutine = null;
+        HideHitFeedback();
+        ClearMissFeedback();
+        missFeedbackRoutine = StartCoroutine(ShowMissFeedbackRoutine());
+    }
+
+    private IEnumerator ShowMissFeedbackRoutine()
+    {
+        missFeedbackText.gameObject.SetActive(true);
+        missFeedbackText.text = "MISS";
+        missFeedbackText.enabled = true;
+        yield return new WaitForSeconds(missFeedbackDuration);
+        missFeedbackText.enabled = false;
+        missFeedbackRoutine = null;
+    }
+
+    private void ClearMissFeedback()
+    {
+        if (missFeedbackRoutine != null) StopCoroutine(missFeedbackRoutine);
+        missFeedbackRoutine = null;
+        if (missFeedbackText != null) missFeedbackText.enabled = false;
     }
 
     private IEnumerator ShowHitFeedbackRoutine(float reactionTime)
@@ -166,13 +207,60 @@ public class UIManager : MonoBehaviour
 
     public void ShowSessionComplete()
     {
+        ShowSummaryPanel();
         if (sessionCompleteText == null)
         {
             return;
         }
 
         sessionCompleteText.text = "SESSION COMPLETE\nPress R to Restart";
-        SetSessionCompleteVisible(true);
+        // Keep the old message as a fallback when the summary has not been wired.
+        SetSessionCompleteVisible(summaryPanel == null || summaryText == null);
+    }
+
+    public void ShowSummaryPanel()
+    {
+        if (summaryShown) return;
+        summaryShown = true;
+        if (hitFeedbackRoutine != null) StopCoroutine(hitFeedbackRoutine);
+        hitFeedbackRoutine = null;
+        HideHitFeedback();
+        ClearMissFeedback();
+
+        ScoreManager stats = ScoreManager.Instance;
+        AimTrainingMode mode = GameModeManager.Instance != null
+            ? GameModeManager.Instance.CurrentMode : AimTrainingMode.StaticTargets;
+        string modeName;
+        switch (mode)
+        {
+            case AimTrainingMode.MovingTargets: modeName = "Moving Targets"; break;
+            case AimTrainingMode.FlickTargets: modeName = "Flick Targets"; break;
+            case AimTrainingMode.ReactionTargets: modeName = "Reaction Targets"; break;
+            default: modeName = "Static Targets"; break;
+        }
+
+        // Copy the final values once, so the summary stays fixed until restart.
+        SetText(summaryText,
+            $"SESSION COMPLETE\nMode: {modeName}\n\n" +
+            $"Final Shots: {(stats != null ? stats.ShotsFired : 0)}\n" +
+            $"Final Hits: {(stats != null ? stats.Hits : 0)}\n" +
+            $"Final Misses: {(stats != null ? stats.Misses : 0)}\n" +
+            $"Final Accuracy: {(stats != null ? stats.AccuracyPercentage : 0f):F1}%\n" +
+            $"Final Avg Reaction: {(stats != null ? stats.AverageReactionTime : 0f):F3}s\n\n" +
+            "Press R to Restart");
+        if (summaryPanel != null) summaryPanel.SetActive(true);
+        if (summaryText != null)
+        {
+            summaryText.gameObject.SetActive(true);
+            summaryText.enabled = true;
+        }
+    }
+
+    public void HideSummaryPanel()
+    {
+        summaryShown = false;
+        if (summaryText != null) summaryText.enabled = false;
+        if (summaryPanel != null) summaryPanel.SetActive(false);
     }
 
     private void SetSessionCompleteVisible(bool isVisible)

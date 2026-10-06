@@ -16,6 +16,11 @@ public class Target : MonoBehaviour
     [SerializeField] private Color inactiveColor = Color.gray;
     [SerializeField] private Color activeColor = Color.red;
 
+    [Header("Hit Feedback")]
+    [SerializeField] private Color hitColor = Color.green;
+    [SerializeField, Min(0f)] private float hitFeedbackDuration = 0.12f;
+    [SerializeField, Min(1f)] private float hitScaleMultiplier = 1.2f;
+
     private Coroutine activationRoutine;
 
     private bool wasHit;
@@ -88,8 +93,29 @@ public class Target : MonoBehaviour
             ScoreManager.Instance.RegisterHit(reactionTime);
         }
 
+        // Remove collision immediately so repeated shots cannot score the same target.
+        foreach (Collider targetCollider in GetComponentsInChildren<Collider>())
+            targetCollider.enabled = false;
+        foreach (TargetMovement movement in GetComponentsInChildren<TargetMovement>())
+            movement.enabled = false;
+        StartCoroutine(PlayHitFeedback());
+    }
+
+    private IEnumerator PlayHitFeedback()
+    {
+        SetColor(hitColor);
+        Vector3 originalScale = transform.localScale;
+        float elapsed = 0f;
+        while (elapsed < hitFeedbackDuration)
+        {
+            // One short pulse: grow, then shrink back to the original size.
+            float pulse = Mathf.Sin(elapsed / hitFeedbackDuration * Mathf.PI);
+            transform.localScale = originalScale * Mathf.Lerp(1f, hitScaleMultiplier, pulse);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
         HitRegistered?.Invoke(this);
-        gameObject.SetActive(false);
         Destroy(gameObject);
     }
 }

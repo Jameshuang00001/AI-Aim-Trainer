@@ -20,6 +20,15 @@ using UnityEngine.UI;
 /// </summary>
 public class UIManager : MonoBehaviour
 {
+    [Header("Start Menu")]
+    [SerializeField] private GameObject startMenuPanel;
+    [SerializeField] private Text modeSelectText;
+    [SerializeField] private Button staticModeButton;
+    [SerializeField] private Button movingModeButton;
+    [SerializeField] private Button flickModeButton;
+    [SerializeField] private Button reactionModeButton;
+    [SerializeField] private Button startButton;
+
     [Header("Stats Text")]
     [SerializeField] private Text shotsText;
     [SerializeField] private Text hitsText;
@@ -71,6 +80,17 @@ public class UIManager : MonoBehaviour
         }
 
         RefreshSession();
+        // Assigning button references wires them automatically; no manual OnClick needed.
+        if (GameModeManager.Instance != null)
+        {
+            GameModeManager modes = GameModeManager.Instance;
+            if (staticModeButton != null) staticModeButton.onClick.AddListener(modes.SetStaticTargetsMode);
+            if (movingModeButton != null) movingModeButton.onClick.AddListener(modes.SetMovingTargetsMode);
+            if (flickModeButton != null) flickModeButton.onClick.AddListener(modes.SetFlickTargetsMode);
+            if (reactionModeButton != null) reactionModeButton.onClick.AddListener(modes.SetReactionTargetsMode);
+            if (startButton != null) startButton.onClick.AddListener(modes.StartGame);
+        }
+        ShowStartMenu();
     }
 
     private void Update()
@@ -79,7 +99,7 @@ public class UIManager : MonoBehaviour
         RefreshMode();
     }
 
-    private void RefreshMode()
+    public void RefreshMode()
     {
         AimTrainingMode mode = GameModeManager.Instance != null
             ? GameModeManager.Instance.CurrentMode : AimTrainingMode.StaticTargets;
@@ -102,6 +122,24 @@ public class UIManager : MonoBehaviour
                 SetText(modeInstructionText, "Hit stationary targets accurately.");
                 break;
         }
+        if (modeSelectText != null && trainingModeText != null)
+            modeSelectText.text = trainingModeText.text;
+        else
+            SetText(modeSelectText, $"Selected Mode: {mode}");
+    }
+
+    public void ShowStartMenu()
+    {
+        if (startMenuPanel != null) startMenuPanel.SetActive(true);
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+        RefreshMode();
+    }
+
+    public void HideStartMenu()
+    {
+        if (startMenuPanel != null) startMenuPanel.SetActive(false);
+        RefreshMode();
     }
 
     public void RefreshStats(ScoreManager scoreManager)

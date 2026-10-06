@@ -48,6 +48,17 @@ public class ScoreManager : MonoBehaviour
         NotifyStatsChanged();
     }
 
+    public void ResetStats()
+    {
+        ShotsFired = 0;
+        Hits = 0;
+        Misses = 0;
+        totalReactionTime = 0f;
+        AccuracyPercentage = 0f;
+        AverageReactionTime = 0f;
+        NotifyStatsChanged();
+    }
+
     public void RegisterHit(float reactionTime)
     {
         if (!CanRegisterStats())
@@ -92,8 +103,8 @@ public class ScoreManager : MonoBehaviour
 
     private bool CanRegisterStats()
     {
-        // If there is no SessionManager in the scene, keep the old free-play behavior.
-        return SessionManager.Instance == null || SessionManager.Instance.IsSessionActive;
+        // Menu and completed sessions must not change the score.
+        return SessionManager.Instance != null && SessionManager.Instance.IsSessionActive;
     }
 
     private void LogStats()

@@ -3,7 +3,7 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Controls a timed aim training session.
-/// Place one SessionManager in the scene. The session starts automatically on Play.
+/// Place one SessionManager in the scene. GameModeManager starts it from the menu.
 /// </summary>
 public class SessionManager : MonoBehaviour
 {
@@ -28,16 +28,12 @@ public class SessionManager : MonoBehaviour
         }
 
         Instance = this;
+        RemainingTime = Mathf.Max(0f, sessionDuration);
 
         if (uiManager == null)
         {
             uiManager = FindObjectOfType<UIManager>();
         }
-    }
-
-    private void Start()
-    {
-        StartSession();
     }
 
     private void Update()
@@ -63,7 +59,15 @@ public class SessionManager : MonoBehaviour
 
     public void StartSession()
     {
-        RemainingTime = sessionDuration;
+        BeginSession();
+    }
+
+    public void BeginSession()
+    {
+        if (IsSessionActive) return;
+        DestroyActiveTargets();
+        if (ScoreManager.Instance != null) ScoreManager.Instance.ResetStats();
+        RemainingTime = Mathf.Max(0f, sessionDuration);
         IsSessionActive = true;
         IsSessionComplete = false;
 
@@ -82,6 +86,8 @@ public class SessionManager : MonoBehaviour
         RemainingTime = 0f;
         IsSessionActive = false;
         IsSessionComplete = true;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
 
         DestroyActiveTargets();
         ShowSessionCompleteUI();

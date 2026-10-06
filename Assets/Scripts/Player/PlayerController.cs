@@ -37,13 +37,14 @@ public class PlayerController : MonoBehaviour
 
     private void Start()
     {
-        // Keep the mouse captured while practicing.
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // Leave the cursor free for menu buttons. StartGame captures it later.
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     private void Update()
     {
+        if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive) return;
         HandleMouseLook();
         HandleMovement();
     }

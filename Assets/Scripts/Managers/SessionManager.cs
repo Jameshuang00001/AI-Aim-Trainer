@@ -10,7 +10,7 @@ public class SessionManager : MonoBehaviour
     public static SessionManager Instance { get; private set; }
 
     [Header("Session")]
-    [SerializeField] private float sessionDuration = 60f;
+    [SerializeField, Min(0f)] private float sessionDuration = 30f;
 
     [Header("UI")]
     [SerializeField] private UIManager uiManager;
@@ -49,6 +49,13 @@ public class SessionManager : MonoBehaviour
             return;
         }
 
+        // Escape uses the same cleanup and summary path as timer expiration.
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            EndSession();
+            return;
+        }
+
         RemainingTime -= Time.deltaTime;
 
         if (RemainingTime <= 0f)
@@ -78,7 +85,7 @@ public class SessionManager : MonoBehaviour
 
     public void EndSession()
     {
-        if (IsSessionComplete)
+        if (!IsSessionActive)
         {
             return;
         }

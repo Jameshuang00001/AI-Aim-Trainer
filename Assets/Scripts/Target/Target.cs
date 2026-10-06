@@ -23,18 +23,50 @@ public class Target : MonoBehaviour
 
     private Coroutine activationRoutine;
 
-    private bool wasHit;
+    private bool hasBeenHit;
+
+    private void Awake()
+    {
+        // Reject an accidentally attached Target on the player or a parent of it.
+        if (GetComponentInChildren<PlayerController>(true) != null ||
+            GetComponentInParent<PlayerController>() != null)
+        {
+            Debug.LogError("Target must be on a separate target object, outside the player hierarchy.", this);
+            enabled = false;
+            return;
+        }
+        ConfigureNonPhysicalColliders();
+    }
+
+    public void ConfigureNonPhysicalColliders()
+    {
+        if (!enabled) return;
+        // Aim targets are raycast surfaces, never obstacles that push the player.
+        foreach (Collider targetCollider in GetComponentsInChildren<Collider>(true))
+        {
+            MeshCollider mesh = targetCollider as MeshCollider;
+            if (mesh != null && !mesh.convex) mesh.convex = true;
+            targetCollider.isTrigger = true;
+        }
+        foreach (Rigidbody body in GetComponentsInChildren<Rigidbody>(true))
+        {
+            body.isKinematic = true;
+            body.useGravity = false;
+        }
+    }
 
     private void OnEnable()
     {
+        if (!enabled) return;
         SpawnTime = Time.time;
-        wasHit = false;
+        hasBeenHit = false;
         IsHittable = true;
         SetColor(normalColor);
     }
 
     public void Configure(AimTrainingMode mode, float reactionDelay)
     {
+        if (!enabled) return;
         if (activationRoutine != null) StopCoroutine(activationRoutine);
         activationRoutine = null;
         SpawnTime = Time.time;
@@ -71,8 +103,9 @@ public class Target : MonoBehaviour
 
     public void Hit()
     {
+        if (!enabled) return;
         if (SessionManager.Instance != null && !SessionManager.Instance.IsSessionActive) return;
-        if (wasHit)
+        if (hasBeenHit)
         {
             return;
         }
@@ -84,8 +117,13 @@ public class Target : MonoBehaviour
             return;
         }
 
-        wasHit = true;
+        hasBeenHit = true;
         IsHittable = false;
+        // Disable collision and movement before score callbacks or visual changes.
+        foreach (Collider targetCollider in GetComponentsInChildren<Collider>(true))
+            targetCollider.enabled = false;
+        foreach (TargetMovement movement in GetComponentsInChildren<TargetMovement>(true))
+            movement.enabled = false;
         float reactionTime = Time.time - SpawnTime;
 
         if (ScoreManager.Instance != null)
@@ -93,11 +131,6 @@ public class Target : MonoBehaviour
             ScoreManager.Instance.RegisterHit(reactionTime);
         }
 
-        // Remove collision immediately so repeated shots cannot score the same target.
-        foreach (Collider targetCollider in GetComponentsInChildren<Collider>())
-            targetCollider.enabled = false;
-        foreach (TargetMovement movement in GetComponentsInChildren<TargetMovement>())
-            movement.enabled = false;
         StartCoroutine(PlayHitFeedback());
     }
 

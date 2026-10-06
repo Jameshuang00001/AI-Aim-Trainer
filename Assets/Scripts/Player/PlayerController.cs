@@ -17,17 +17,25 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float jumpHeight = 1.5f;
     [SerializeField] private float gravity = -20f;
 
+    [Header("Jump Forgiveness")]
+    [SerializeField, Min(0f)] private float coyoteTime = 0.1f;
+    [SerializeField, Min(0f)] private float jumpBufferTime = 0.1f;
+
     [Header("Mouse Look")]
     [SerializeField] private float mouseSensitivity = 2f;
     [SerializeField] private float verticalLookLimit = 85f;
 
     private CharacterController characterController;
-    private Vector3 verticalVelocity;
+    private float verticalVelocity;
+    private float lastGroundedTime = float.NegativeInfinity;
+    private float lastJumpPressedTime = float.NegativeInfinity;
     private float cameraPitch;
 
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+        // Existing player scenes get the safety net without needing Inspector rewiring.
+        if (GetComponent<PlayerBoundsReset>() == null) gameObject.AddComponent<PlayerBoundsReset>();
 
         if (playerCamera == null)
         {
@@ -44,7 +52,11 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-        if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive) return;
+        if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive)
+        {
+            ResetMovementVelocity();
+            return;
+        }
         HandleMouseLook();
         HandleMovement();
     }
@@ -65,30 +77,50 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    public void ResetMovementVelocity()
+    {
+        verticalVelocity = 0f;
+        lastGroundedTime = float.NegativeInfinity;
+        lastJumpPressedTime = float.NegativeInfinity;
+    }
+
     private void HandleMovement()
     {
         bool isGrounded = characterController.isGrounded;
 
-        if (isGrounded && verticalVelocity.y < 0f)
+        // Sample the button once, before moving. Remember early landing presses.
+        if (Input.GetButtonDown("Jump")) lastJumpPressedTime = Time.time;
+
+        if (isGrounded && verticalVelocity <= 0f)
         {
-            verticalVelocity.y = -2f;
+            lastGroundedTime = Time.time;
+            verticalVelocity = -2f;
         }
 
-        float inputX = Input.GetAxis("Horizontal");
-        float inputZ = Input.GetAxis("Vertical");
+        // Raw axes stop immediately on release; only vertical velocity persists.
+        float inputX = Input.GetAxisRaw("Horizontal");
+        float inputZ = Input.GetAxisRaw("Vertical");
 
         Vector3 moveDirection = transform.right * inputX + transform.forward * inputZ;
+        moveDirection.y = 0f;
         moveDirection = Vector3.ClampMagnitude(moveDirection, 1f);
 
         float currentSpeed = Input.GetKey(KeyCode.LeftShift) ? sprintSpeed : movementSpeed;
-        characterController.Move(moveDirection * currentSpeed * Time.deltaTime);
-
-        if (Input.GetButtonDown("Jump") && isGrounded)
+        bool hasBufferedJump = Time.time - lastJumpPressedTime <= jumpBufferTime;
+        bool canJump = Time.time - lastGroundedTime <= coyoteTime;
+        if (hasBufferedJump && canJump)
         {
-            verticalVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            verticalVelocity = Mathf.Sqrt(Mathf.Max(0f, jumpHeight) * -2f * gravity);
+            // Consume both windows to prevent a second jump during takeoff.
+            lastJumpPressedTime = float.NegativeInfinity;
+            lastGroundedTime = float.NegativeInfinity;
         }
 
-        verticalVelocity.y += gravity * Time.deltaTime;
-        characterController.Move(verticalVelocity * Time.deltaTime);
+        verticalVelocity += gravity * Time.deltaTime;
+        Vector3 velocity = moveDirection * currentSpeed;
+        velocity.y = verticalVelocity;
+        CollisionFlags collisions = characterController.Move(velocity * Time.deltaTime);
+        if ((collisions & CollisionFlags.Above) != 0 && verticalVelocity > 0f)
+            verticalVelocity = 0f;
     }
 }

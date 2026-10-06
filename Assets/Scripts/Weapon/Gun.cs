@@ -59,7 +59,9 @@ public class Gun : MonoBehaviour
         Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         Debug.DrawRay(ray.origin, ray.direction * range, Color.red, 0.25f);
 
-        if (Physics.Raycast(ray, out RaycastHit hitInfo, range))
+        // Explicitly include trigger targets even when global trigger queries are off.
+        if (Physics.Raycast(ray, out RaycastHit hitInfo, range,
+            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide))
         {
             Target target = hitInfo.collider.GetComponentInParent<Target>();
 

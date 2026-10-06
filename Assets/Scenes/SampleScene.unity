@@ -388,6 +388,14 @@ MonoBehaviour:
   minDistance: 8
   maxDistance: 20
   maxActiveTargets: 5
+  minSpawnHeight: 1
+  maxSpawnHeight: 4
+  groundLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  groundRayHeight: 20
+  groundRayDistance: 100
+  spawnAttempts: 10
   defaultMovementType: 0
   defaultMovementSpeed: 2
   defaultMovementDistance: 2
@@ -742,7 +750,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 68b9a8437fd494fc7bfd8fc995db70cd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sessionDuration: 60
+  sessionDuration: 30
   uiManager: {fileID: 0}
 --- !u!4 &366752528
 Transform:
@@ -2141,6 +2149,7 @@ GameObject:
   - component: {fileID: 1500891684}
   - component: {fileID: 1500891683}
   - component: {fileID: 1500891682}
+  - component: {fileID: 1500891685}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -2165,6 +2174,8 @@ MonoBehaviour:
   sprintSpeed: 10
   jumpHeight: 1.5
   gravity: -20
+  coyoteTime: 0.1
+  jumpBufferTime: 0.1
   mouseSensitivity: 2
   verticalLookLimit: 85
 --- !u!143 &1500891683
@@ -2209,6 +2220,21 @@ Transform:
   - {fileID: 963194228}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1500891685
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1500891681}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e00f5fb8e03145ea8bf77b42f13a35b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minY: -5
+  maxDistanceFromOrigin: 50
+  resetPosition: {x: 0, y: 1, z: 0}
 --- !u!1 &1550184021
 GameObject:
   m_ObjectHideFlags: 0

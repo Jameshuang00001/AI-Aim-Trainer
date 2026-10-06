@@ -30,6 +30,15 @@ public class TargetMovement : MonoBehaviour
 
     private void Start()
     {
+        if (GetComponentInChildren<PlayerController>(true) != null ||
+            GetComponentInParent<PlayerController>() != null)
+        {
+            Debug.LogError("TargetMovement must not be attached inside the player hierarchy.", this);
+            enabled = false;
+            return;
+        }
+        Target target = GetComponentInParent<Target>();
+        if (target != null) target.ConfigureNonPhysicalColliders();
         spawnLocalPosition = transform.localPosition;
         RandomizeMovement();
     }

@@ -18,6 +18,14 @@ public class TargetSpawner : MonoBehaviour
     [SerializeField] private float maxDistance = 20f;
     [SerializeField] private int maxActiveTargets = 5;
 
+    [Header("Ground Clearance")]
+    [SerializeField, Min(0f)] private float minSpawnHeight = 1f;
+    [SerializeField, Min(0f)] private float maxSpawnHeight = 4f;
+    [SerializeField] private LayerMask groundLayers = ~0;
+    [SerializeField, Min(1f)] private float groundRayHeight = 20f;
+    [SerializeField, Min(1f)] private float groundRayDistance = 100f;
+    [SerializeField, Min(1)] private int spawnAttempts = 10;
+
     [Header("Moving Targets")]
     [SerializeField] private TargetMovement.MovementType defaultMovementType = TargetMovement.MovementType.Horizontal;
     [SerializeField] private float defaultMovementSpeed = 2f;
@@ -72,26 +80,39 @@ public class TargetSpawner : MonoBehaviour
             return;
         }
 
-        Vector3 spawnPosition = GetRandomPositionInFrontOfPlayer();
         GameObject targetObject;
+
+        if (targetPrefab != null && (targetPrefab.GetComponentInChildren<PlayerController>(true) != null ||
+            targetPrefab.GetComponentInChildren<CharacterController>(true) != null))
+        {
+            Debug.LogError("Target prefab must not contain a player or CharacterController.", this);
+            return;
+        }
 
         if (targetPrefab != null)
         {
-            targetObject = Instantiate(targetPrefab, spawnPosition, Quaternion.identity);
+            targetObject = Instantiate(targetPrefab, transform.position, Quaternion.identity);
         }
         else
         {
             targetObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            targetObject.transform.position = spawnPosition;
+            targetObject.transform.position = transform.position;
             targetObject.transform.localScale = Vector3.one;
             targetObject.name = "Practice Target";
         }
 
         Target target = targetObject.GetComponent<Target>();
-        if (target == null)
+        if (target == null) target = targetObject.AddComponent<Target>();
+        // Make fallback and prefab targets non-physical BEFORE syncing their bounds.
+        target.ConfigureNonPhysicalColliders();
+        Physics.SyncTransforms();
+        if (!TryGetSpawnPosition(targetObject, out Vector3 spawnPosition))
         {
-            target = targetObject.AddComponent<Target>();
+            targetObject.SetActive(false);
+            Destroy(targetObject);
+            return; // Skip this interval when all retry positions are unsafe.
         }
+        targetObject.transform.position = spawnPosition;
 
         AddMovementIfNeeded(targetObject);
         target.Configure(CurrentMode, Random.Range(minReactionDelay,
@@ -132,16 +153,67 @@ public class TargetSpawner : MonoBehaviour
         }
     }
 
-    private Vector3 GetRandomPositionInFrontOfPlayer()
+    private bool TryGetSpawnPosition(GameObject targetObject, out Vector3 spawnPosition)
     {
-        float distance = Random.Range(minDistance, maxDistance);
-        Vector2 randomCirclePoint = Random.insideUnitCircle * spawnRadius;
+        spawnPosition = Vector3.zero;
+        Bounds bounds = new Bounds(targetObject.transform.position, Vector3.zero);
+        foreach (Renderer targetRenderer in targetObject.GetComponentsInChildren<Renderer>())
+            bounds.Encapsulate(targetRenderer.bounds);
+        foreach (Collider targetCollider in targetObject.GetComponentsInChildren<Collider>())
+            bounds.Encapsulate(targetCollider.bounds);
+        Vector3 centerOffset = bounds.center - targetObject.transform.position;
+        float bottomOffset = targetObject.transform.position.y - bounds.min.y;
 
-        Vector3 forwardOffset = playerTransform.forward * distance;
-        Vector3 horizontalOffset = playerTransform.right * randomCirclePoint.x;
-        Vector3 verticalOffset = playerTransform.up * randomCirclePoint.y;
+        // Flatten camera forward so looking down cannot push targets underground.
+        Vector3 forward = Vector3.ProjectOnPlane(playerTransform.forward, Vector3.up).normalized;
+        if (forward.sqrMagnitude < 0.01f)
+            forward = Vector3.ProjectOnPlane(playerTransform.right, Vector3.up).normalized;
+        Vector3 right = Vector3.Cross(Vector3.up, forward);
 
-        return playerTransform.position + forwardOffset + horizontalOffset + verticalOffset;
+        // Reserve room below the spawn point for the entire vertical movement arc.
+        float verticalTravel = CurrentMode == AimTrainingMode.MovingTargets &&
+            defaultMovementType != TargetMovement.MovementType.Horizontal
+            ? Mathf.Abs(defaultMovementDistance) : 0f;
+        float minimumHeight = Mathf.Max(minSpawnHeight, bottomOffset + verticalTravel + 0.05f);
+        if (minimumHeight > maxSpawnHeight) return false;
+
+        for (int attempt = 0; attempt < Mathf.Max(1, spawnAttempts); attempt++)
+        {
+            Vector3 candidate = playerTransform.position + forward * Random.Range(minDistance, maxDistance)
+                + right * Random.Range(-spawnRadius, spawnRadius);
+            Vector3 rayOrigin = candidate + Vector3.up * groundRayHeight;
+            RaycastHit[] groundHits = Physics.RaycastAll(rayOrigin, Vector3.down,
+                groundRayDistance, groundLayers, QueryTriggerInteraction.Ignore);
+            bool foundGround = false;
+            float groundY = float.NegativeInfinity;
+            foreach (RaycastHit hit in groundHits)
+            {
+                // Never treat the player or other targets as ground.
+                if (hit.collider.transform.IsChildOf(targetObject.transform) ||
+                    hit.collider.GetComponentInParent<Target>() != null ||
+                    hit.collider.GetComponentInParent<CharacterController>() != null ||
+                    hit.normal.y < 0.5f) continue;
+                groundY = Mathf.Max(groundY, hit.point.y);
+                foundGround = true;
+            }
+            if (!foundGround) continue;
+            candidate.y = groundY + Random.Range(minimumHeight, maxSpawnHeight);
+
+            // A bounds check also rejects slopes, walls, and other overlapping targets.
+            bool blocked = false;
+            foreach (Collider obstacle in Physics.OverlapBox(candidate + centerOffset,
+                bounds.extents + Vector3.one * 0.02f, Quaternion.identity,
+                Physics.AllLayers, QueryTriggerInteraction.Collide))
+            {
+                if (obstacle.transform.IsChildOf(targetObject.transform)) continue;
+                blocked = true;
+                break;
+            }
+            if (blocked) continue;
+            spawnPosition = candidate;
+            return true;
+        }
+        return false;
     }
 
     private void RemoveDestroyedTargets()

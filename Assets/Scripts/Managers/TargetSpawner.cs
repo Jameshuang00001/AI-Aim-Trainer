@@ -18,6 +18,12 @@ public class TargetSpawner : MonoBehaviour
     [SerializeField] private float maxDistance = 20f;
     [SerializeField] private int maxActiveTargets = 5;
 
+    [Header("Grounded Prefabs")]
+    [Tooltip("Use for humanoid prefabs whose root is at their feet. Primitive fallback targets still float.")]
+    [SerializeField] private bool spawnTargetsOnGround = true;
+    [SerializeField, Min(1f)] private float groundRaycastHeight = 10f;
+    [SerializeField] private float groundOffset = 0f;
+
     [Header("Ground Clearance")]
     [SerializeField, Min(0f)] private float minSpawnHeight = 1f;
     [SerializeField, Min(0f)] private float maxSpawnHeight = 4f;
@@ -156,11 +162,17 @@ public class TargetSpawner : MonoBehaviour
     private bool TryGetSpawnPosition(GameObject targetObject, out Vector3 spawnPosition)
     {
         spawnPosition = Vector3.zero;
+        // Humanoid roots go directly on the ground; fallback spheres retain clearance.
+        bool groundedPrefab = spawnTargetsOnGround && targetPrefab != null;
         Bounds bounds = new Bounds(targetObject.transform.position, Vector3.zero);
-        foreach (Renderer targetRenderer in targetObject.GetComponentsInChildren<Renderer>())
-            bounds.Encapsulate(targetRenderer.bounds);
-        foreach (Collider targetCollider in targetObject.GetComponentsInChildren<Collider>())
-            bounds.Encapsulate(targetCollider.bounds);
+        if (!groundedPrefab)
+        {
+            // Only floating targets use visual/collider bounds and min/max spawn height.
+            foreach (Renderer targetRenderer in targetObject.GetComponentsInChildren<Renderer>())
+                bounds.Encapsulate(targetRenderer.bounds);
+            foreach (Collider targetCollider in targetObject.GetComponentsInChildren<Collider>())
+                bounds.Encapsulate(targetCollider.bounds);
+        }
         Vector3 centerOffset = bounds.center - targetObject.transform.position;
         float bottomOffset = targetObject.transform.position.y - bounds.min.y;
 
@@ -175,13 +187,14 @@ public class TargetSpawner : MonoBehaviour
             defaultMovementType != TargetMovement.MovementType.Horizontal
             ? Mathf.Abs(defaultMovementDistance) : 0f;
         float minimumHeight = Mathf.Max(minSpawnHeight, bottomOffset + verticalTravel + 0.05f);
-        if (minimumHeight > maxSpawnHeight) return false;
+        if (!groundedPrefab && minimumHeight > maxSpawnHeight) return false;
 
         for (int attempt = 0; attempt < Mathf.Max(1, spawnAttempts); attempt++)
         {
             Vector3 candidate = playerTransform.position + forward * Random.Range(minDistance, maxDistance)
                 + right * Random.Range(-spawnRadius, spawnRadius);
-            Vector3 rayOrigin = candidate + Vector3.up * groundRayHeight;
+            float rayHeight = groundedPrefab ? groundRaycastHeight : groundRayHeight;
+            Vector3 rayOrigin = candidate + Vector3.up * rayHeight;
             RaycastHit[] groundHits = Physics.RaycastAll(rayOrigin, Vector3.down,
                 groundRayDistance, groundLayers, QueryTriggerInteraction.Ignore);
             bool foundGround = false;
@@ -197,6 +210,15 @@ public class TargetSpawner : MonoBehaviour
                 foundGround = true;
             }
             if (!foundGround) continue;
+
+            if (groundedPrefab)
+            {
+                // Place the root, not the visual bounds. Child model offsets never
+                // reject humanoid spawns or lift them to floating-target heights.
+                candidate.y = groundY + groundOffset;
+                spawnPosition = candidate;
+                return true;
+            }
             candidate.y = groundY + Random.Range(minimumHeight, maxSpawnHeight);
 
             // A bounds check also rejects slopes, walls, and other overlapping targets.

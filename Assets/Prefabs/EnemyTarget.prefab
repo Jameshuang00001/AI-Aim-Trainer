@@ -53,10 +53,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.17558095
-  m_Height: 1.6075946
+  m_Radius: 0.22283342
+  m_Height: 1.6075945
   m_Direction: 1
-  m_Center: {x: -0.000029295683, y: 2.3047967, z: 0}
+  m_Center: {x: -0.000029295683, y: 2.3047967, z: -0.0036885738}
 --- !u!114 &4660046198863490518
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -69,6 +69,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f8c3628f81c0747e8a64db9643dd8a25, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  targetAnimator: {fileID: 0}
+  deathDestroyDelay: 1.2
+  settleDeathOnGround: 1
+  deathGroundLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  deathSettleSpeed: 8
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   inactiveColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   activeColor: {r: 1, g: 0, b: 0, a: 1}
@@ -139,6 +146,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: X Bot
       objectReference: {fileID: 0}
+    - target: {fileID: 5866666021909216657, guid: 1ea6ff79e78d34fd08d5686ae8d8e0ee, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 9100000, guid: 1b08be9ecc2b04da5957fcd7694ebbd2, type: 2}
     - target: {fileID: 5866666021909216657, guid: 1ea6ff79e78d34fd08d5686ae8d8e0ee, type: 3}
       propertyPath: m_ApplyRootMotion
       value: 0

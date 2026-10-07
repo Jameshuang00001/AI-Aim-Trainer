@@ -146,6 +146,8 @@ public class TargetSpawner : MonoBehaviour
         }
 
         targetMovement.Configure(defaultMovementType, defaultMovementSpeed, defaultMovementDistance);
+        targetMovement.SetGroundedHumanoid(spawnTargetsOnGround && targetPrefab != null,
+            groundOffset, groundLayers);
         targetMovement.enabled = true;
     }
 

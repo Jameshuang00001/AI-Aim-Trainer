@@ -1,5 +1,37 @@
 # Phase 6: Start Menu
 
+## Humanoid Roaming and Death Grounding
+
+Grounded prefabs with an Animator now use random roaming in Moving Targets mode.
+TargetMovement's Random Roaming defaults on. Movement Distance limits the horizontal
+radius around the spawn point; Movement Speed is world units per second. Random
+move periods (1.2-2.5s) alternate with random pauses (0.4-1.0s). Turn Speed controls
+how quickly the target faces its actual travel direction. The model should face
+local +Z. IsMoving is false while paused or blocked. Root motion remains disabled.
+IsMoving has a 0.25-second stopping grace period and only changes when its value
+changes. Death/component disabling stops walking immediately. Each straight move
+chooses a sufficiently long endpoint within the spawn radius and keeps that
+direction for the full phase. Short segments slow down to fill the minimum phase;
+long segments may take longer than Max Move Duration to respect Movement Speed.
+Boundary/ground failures do not shorten phases. Circular movement stays continuous
+unless Pause Circular Movement is checked. Existing serialized Inspector duration
+overrides should be updated manually to the new defaults if needed.
+Ground probes reject missing ground and abrupt steps. This is lightweight roaming,
+not NavMesh pathfinding. Use an open arena; complex obstacle navigation is not included.
+
+Target's Settle Death On Ground defaults on. Death Ground Layers should contain
+only arena floor colliders if possible. The short death period samples the animated
+skinned mesh (not its standing bounds), then moves only the collider-disabled target
+vertically toward the floor. Death Settle Speed controls the correction. This also
+handles animation height offsets without changing the player or shared model asset.
+The mesh buffer is reused and destroyed with the target. Increase Death Destroy
+Delay if the death animation needs longer than 1.2 seconds to finish.
+
+Verify in Play mode: Moving Targets walk facing travel, stop into Idle, then resume
+in varied directions; their radius remains bounded. Shoot standing and moving targets
+and check the body settles onto the floor. Select the floor layer for both spawning
+and death grounding so walls or other props are not mistaken for ground.
+
 ## Gameplay Polish Settings
 
 ### Target Collision and Player Safety

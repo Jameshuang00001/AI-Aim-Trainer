@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -10,6 +11,20 @@ public class Target : MonoBehaviour
     public float SpawnTime { get; private set; }
     public bool IsHittable { get; private set; }
     public event Action<Target> HitRegistered;
+
+    [Header("Humanoid Animation")]
+    [SerializeField] private Animator targetAnimator;
+    [SerializeField, Min(0f)] private float deathDestroyDelay = 1.2f;
+    [SerializeField] private bool settleDeathOnGround = true;
+    [SerializeField] private LayerMask deathGroundLayers = ~0;
+    [SerializeField, Min(0f)] private float deathSettleSpeed = 8f;
+
+    private SkinnedMeshRenderer[] deathRenderers;
+    private Mesh deathMesh;
+    private readonly List<Vector3> deathVertices = new List<Vector3>();
+    private float deathStartTime;
+    private float deathGroundY;
+    private bool hasDeathGround;
 
     [Header("Target Colors")]
     [SerializeField] private Color normalColor = Color.white;
@@ -36,6 +51,14 @@ public class Target : MonoBehaviour
             return;
         }
         ConfigureNonPhysicalColliders();
+        if (targetAnimator == null) targetAnimator = GetComponentInChildren<Animator>();
+        if (targetAnimator != null)
+        {
+            // TargetMovement owns position; animations must never move the root.
+            targetAnimator.applyRootMotion = false;
+            targetAnimator.SetBool("IsMoving", false);
+            deathRenderers = targetAnimator.GetComponentsInChildren<SkinnedMeshRenderer>();
+        }
     }
 
     public void ConfigureNonPhysicalColliders()
@@ -131,7 +154,72 @@ public class Target : MonoBehaviour
             ScoreManager.Instance.RegisterHit(reactionTime);
         }
 
-        StartCoroutine(PlayHitFeedback());
+        if (targetAnimator != null)
+        {
+            deathStartTime = Time.time;
+            FindDeathGround();
+            targetAnimator.SetBool("IsMoving", false);
+            targetAnimator.SetTrigger("Death");
+            StartCoroutine(DestroyAfterDeath());
+        }
+        else
+        {
+            // Primitive targets retain their short color/scale pulse.
+            StartCoroutine(PlayHitFeedback());
+        }
+    }
+
+    private void FindDeathGround()
+    {
+        hasDeathGround = false;
+        float closestDistance = float.PositiveInfinity;
+        foreach (RaycastHit hit in Physics.RaycastAll(transform.position + Vector3.up * 5f,
+            Vector3.down, 100f, deathGroundLayers, QueryTriggerInteraction.Ignore))
+        {
+            if (hit.normal.y < 0.5f || hit.collider.GetComponentInParent<Target>() != null ||
+                hit.collider.GetComponentInParent<CharacterController>() != null) continue;
+            if (hit.distance >= closestDistance) continue;
+            closestDistance = hit.distance;
+            deathGroundY = hit.point.y;
+            hasDeathGround = true;
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (!hasBeenHit || targetAnimator == null || !settleDeathOnGround || !hasDeathGround ||
+            Time.time - deathStartTime < 0.15f) return;
+        if (deathMesh == null) deathMesh = new Mesh();
+        float lowestY = float.PositiveInfinity;
+        // Skin bounds can stay at the standing pose. Measure the actual animated mesh
+        // during the short death period so a lying body cannot remain suspended.
+        foreach (SkinnedMeshRenderer body in deathRenderers)
+        {
+            if (!body.enabled || body.sharedMesh == null) continue;
+            body.BakeMesh(deathMesh);
+            deathMesh.GetVertices(deathVertices);
+            foreach (Vector3 vertex in deathVertices)
+                lowestY = Mathf.Min(lowestY, body.transform.TransformPoint(vertex).y);
+        }
+        if (float.IsPositiveInfinity(lowestY)) return;
+        Vector3 position = transform.position;
+        float groundedY = position.y + deathGroundY + 0.02f - lowestY;
+        position.y = Mathf.MoveTowards(position.y, groundedY, deathSettleSpeed * Time.deltaTime);
+        transform.position = position; // Only this collider-disabled target moves.
+    }
+
+    private void OnDestroy()
+    {
+        if (deathMesh != null) Destroy(deathMesh);
+    }
+
+    private IEnumerator DestroyAfterDeath()
+    {
+        // Keep the target tracked until its animation finishes, so session cleanup
+        // can still remove it and flick mode waits for this target to disappear.
+        yield return new WaitForSeconds(Mathf.Max(0f, deathDestroyDelay));
+        HitRegistered?.Invoke(this);
+        Destroy(gameObject);
     }
 
     private IEnumerator PlayHitFeedback()

@@ -27,6 +27,72 @@ public class TargetMovement : MonoBehaviour
     private float movementDirection = 1f;
     private float phaseOffset;
     private float speedMultiplier = 1f;
+    private Animator targetAnimator;
+
+    [Header("Humanoid Roaming")]
+    [SerializeField] private bool randomRoaming = true;
+    [SerializeField, Min(0.05f)] private float minMoveDuration = 1.2f;
+    [SerializeField, Min(0.05f)] private float maxMoveDuration = 2.5f;
+    [SerializeField, Min(0.05f)] private float minPauseDuration = 0.4f;
+    [SerializeField, Min(0.05f)] private float maxPauseDuration = 1f;
+    [SerializeField, Min(0f)] private float animatorMovingGraceTime = 0.25f;
+    [SerializeField] private bool pauseCircularMovement;
+    [SerializeField] private float turnSpeed = 540f;
+    [SerializeField] private LayerMask groundLayers = ~0;
+
+    private bool groundedHumanoid;
+    private bool pausing;
+    private float nextDecisionTime;
+    private Vector3 spawnWorldPosition;
+    private float groundOffset;
+    private bool actuallyMoving;
+    private Vector3 phaseStartPosition;
+    private Vector3 phaseEndPosition;
+    private float phaseStartTime;
+    private float phaseDuration;
+    private float lastMovementTime = float.NegativeInfinity;
+    private float circleAngle;
+    private bool initialized;
+
+    private bool UsesRoaming => targetAnimator != null && groundedHumanoid && randomRoaming;
+
+    public void SetGroundedHumanoid(bool grounded, float offset, LayerMask layers)
+    {
+        groundedHumanoid = grounded;
+        groundOffset = offset;
+        groundLayers = layers;
+    }
+
+    private void Awake()
+    {
+        targetAnimator = GetComponentInChildren<Animator>();
+        if (targetAnimator != null) targetAnimator.applyRootMotion = false;
+    }
+
+    private void OnEnable()
+    {
+        lastMovementTime = float.NegativeInfinity;
+        if (initialized) BeginMovePhase();
+    }
+
+    private void OnDisable()
+    {
+        // Death bypasses grace and stops walking immediately.
+        lastMovementTime = float.NegativeInfinity;
+        if (targetAnimator != null && targetAnimator.GetBool("IsMoving"))
+            targetAnimator.SetBool("IsMoving", false);
+    }
+
+    private void UpdateMovementAnimation()
+    {
+        if (targetAnimator != null)
+        {
+            // Enabled targets with zero speed or distance should still idle.
+            bool isMoving = isActiveAndEnabled && Time.time - lastMovementTime <= animatorMovingGraceTime;
+            if (targetAnimator.GetBool("IsMoving") != isMoving)
+                targetAnimator.SetBool("IsMoving", isMoving);
+        }
+    }
 
     private void Start()
     {
@@ -40,27 +106,129 @@ public class TargetMovement : MonoBehaviour
         Target target = GetComponentInParent<Target>();
         if (target != null) target.ConfigureNonPhysicalColliders();
         spawnLocalPosition = transform.localPosition;
+        spawnWorldPosition = transform.position;
         RandomizeMovement();
+        circleAngle = phaseOffset;
+        initialized = true;
+        BeginMovePhase();
+        UpdateMovementAnimation();
     }
 
     private void Update()
     {
-        // Each target has its own direction, phase, and speed multiplier.
-        // This keeps targets from moving in the same direction at the same time.
-        float time = (Time.time * movementSpeed * speedMultiplier * movementDirection) + phaseOffset;
-
-        if (movementType == MovementType.Horizontal)
+        Vector3 previousPosition = transform.position;
+        bool continuousCircle = movementType == MovementType.Circular && !pauseCircularMovement;
+        if (!continuousCircle && Time.time >= nextDecisionTime)
         {
-            MoveHorizontal(time);
+            if (pausing) BeginMovePhase();
+            else
+            {
+                pausing = true;
+                nextDecisionTime = Time.time + RandomDuration(minPauseDuration, maxPauseDuration);
+            }
         }
-        else if (movementType == MovementType.Vertical)
+        if ((!pausing || continuousCircle) && movementSpeed > 0f && movementDistance > 0f)
         {
-            MoveVertical(time);
+            if (movementType == MovementType.Circular)
+            {
+                circleAngle += Time.deltaTime * movementSpeed * speedMultiplier * movementDirection;
+                MoveCircular(circleAngle);
+            }
+            else MovePhase();
+        }
+
+        Vector3 displacement = transform.position - previousPosition;
+        actuallyMoving = displacement.sqrMagnitude > 0.00000001f;
+        if (actuallyMoving) lastMovementTime = Time.time;
+        // Face the real horizontal displacement, not a fixed animation direction.
+        displacement.y = 0f;
+        if (targetAnimator != null && displacement.sqrMagnitude > 0.000001f)
+        {
+            Quaternion facing = Quaternion.LookRotation(displacement, Vector3.up);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, facing,
+                Mathf.Max(0f, turnSpeed) * Time.deltaTime);
+        }
+        UpdateMovementAnimation();
+    }
+
+    private void BeginMovePhase()
+    {
+        pausing = false;
+        phaseStartTime = Time.time;
+        phaseDuration = RandomDuration(minMoveDuration, maxMoveDuration);
+        // Keep a phase's speed fixed; only randomize it between phases.
+        speedMultiplier = randomizeSpeed ? Random.Range(Mathf.Max(0.01f, minSpeedMultiplier),
+            Mathf.Max(0.01f, minSpeedMultiplier, maxSpeedMultiplier)) : 1f;
+        phaseStartPosition = UsesRoaming ? transform.position : transform.localPosition;
+        float radius = Mathf.Max(0f, movementDistance);
+        if (UsesRoaming)
+        {
+            phaseEndPosition = spawnWorldPosition;
+            for (int attempt = 0; attempt < 12; attempt++)
+            {
+                Vector2 point = Random.insideUnitCircle * radius;
+                Vector3 candidate = spawnWorldPosition + new Vector3(point.x, 0f, point.y);
+                Vector3 travel = candidate - phaseStartPosition;
+                travel.y = 0f;
+                if (travel.magnitude < radius * 0.5f || !TryGroundPosition(ref candidate)) continue;
+                phaseEndPosition = candidate;
+                break;
+            }
+            phaseEndPosition.y = phaseStartPosition.y;
         }
         else
         {
-            MoveCircular(time);
+            Vector3 axis = movementType == MovementType.Vertical ? Vector3.up : Vector3.right;
+            float current = Vector3.Dot(phaseStartPosition - spawnLocalPosition, axis);
+            float sign = Random.value < 0.5f ? -1f : 1f;
+            float endpoint = sign * Random.Range(radius * 0.5f, radius);
+            if (Mathf.Abs(endpoint - current) < radius * 0.5f) endpoint = -sign * radius;
+            phaseEndPosition = spawnLocalPosition + axis * endpoint;
         }
+        // Fit the segment to the whole duration: no early boundary stop or reversal.
+        if (movementType != MovementType.Circular)
+            phaseDuration = Mathf.Max(phaseDuration, Vector3.Distance(phaseStartPosition, phaseEndPosition)
+                / Mathf.Max(0.01f, movementSpeed * speedMultiplier));
+        nextDecisionTime = phaseStartTime + phaseDuration;
+    }
+
+    private void MovePhase()
+    {
+        float progress = Mathf.Clamp01((Time.time - phaseStartTime) / phaseDuration);
+        Vector3 candidate = Vector3.Lerp(phaseStartPosition, phaseEndPosition, progress);
+        if (UsesRoaming)
+        {
+            if (TryGroundPosition(ref candidate)) transform.position = candidate;
+            // Blocked ground never advances the phase timer or changes direction.
+        }
+        else transform.localPosition = candidate;
+    }
+
+    private bool TryGroundPosition(ref Vector3 candidate)
+    {
+        RaycastHit[] hits = Physics.RaycastAll(candidate + Vector3.up * 3f,
+            Vector3.down, 6f, groundLayers, QueryTriggerInteraction.Ignore);
+        bool found = false;
+        float nearest = float.PositiveInfinity;
+        float height = candidate.y;
+        foreach (RaycastHit hit in hits)
+        {
+            if (hit.normal.y < 0.5f || hit.collider.GetComponentInParent<Target>() != null ||
+                hit.collider.GetComponentInParent<CharacterController>() != null) continue;
+            if (Mathf.Abs(hit.point.y + groundOffset - transform.position.y) > 0.4f) continue;
+            if (hit.distance >= nearest) continue;
+            nearest = hit.distance;
+            height = hit.point.y + groundOffset;
+            found = true;
+        }
+        candidate.y = height;
+        return found;
+    }
+
+    private static float RandomDuration(float minimum, float maximum)
+    {
+        minimum = Mathf.Max(0.05f, minimum);
+        return Random.Range(minimum, Mathf.Max(minimum, maximum));
     }
 
     public void Configure(MovementType newMovementType, float newMovementSpeed, float newMovementDistance)
@@ -68,6 +236,7 @@ public class TargetMovement : MonoBehaviour
         movementType = newMovementType;
         movementSpeed = newMovementSpeed;
         movementDistance = newMovementDistance;
+        UpdateMovementAnimation();
     }
 
     private void RandomizeMovement()
@@ -88,22 +257,15 @@ public class TargetMovement : MonoBehaviour
         }
     }
 
-    private void MoveHorizontal(float time)
-    {
-        float offset = Mathf.Sin(time) * movementDistance;
-        transform.localPosition = spawnLocalPosition + new Vector3(offset, 0f, 0f);
-    }
-
-    private void MoveVertical(float time)
-    {
-        float offset = Mathf.Sin(time) * movementDistance;
-        transform.localPosition = spawnLocalPosition + new Vector3(0f, offset, 0f);
-    }
-
     private void MoveCircular(float time)
     {
         float xOffset = Mathf.Cos(time) * movementDistance;
         float yOffset = Mathf.Sin(time) * movementDistance;
-        transform.localPosition = spawnLocalPosition + new Vector3(xOffset, yOffset, 0f);
+        if (groundedHumanoid)
+        {
+            Vector3 candidate = spawnWorldPosition + new Vector3(xOffset, 0f, yOffset);
+            if (TryGroundPosition(ref candidate)) transform.position = candidate;
+        }
+        else transform.localPosition = spawnLocalPosition + new Vector3(xOffset, yOffset, 0f);
     }
 }

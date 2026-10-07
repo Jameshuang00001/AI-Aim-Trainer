@@ -1,6 +1,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+public enum SpawnAreaMode
+{
+    AroundPlayer,
+    ForwardRectangle
+}
+
 /// <summary>
 /// Spawns targets at random positions in front of the player.
 /// If no prefab is assigned, it creates a simple primitive target.
@@ -10,6 +16,19 @@ public class TargetSpawner : MonoBehaviour
     [Header("References")]
     [SerializeField] private Transform playerTransform;
     [SerializeField] private GameObject targetPrefab;
+
+    [Header("Spawn Area")]
+    [SerializeField] private SpawnAreaMode spawnAreaMode = SpawnAreaMode.ForwardRectangle;
+    [Tooltip("Optional world-aligned rectangle center. Without it, use player-relative forward distances.")]
+    [SerializeField] private Transform spawnAreaCenter;
+    [SerializeField, Min(0f)] private float spawnAreaWidth = 12f;
+    [SerializeField, Min(0f)] private float spawnAreaDepth = 14f;
+    [SerializeField, Min(0f)] private float forwardAreaMinZ = 8f;
+    [SerializeField, Min(0f)] private float forwardAreaMaxZ = 22f;
+    [SerializeField] private bool facePlayerOnSpawn = true;
+    [Tooltip("Assign the platform root to exclude its collider footprint. Auto-finds an object named ShootingPlatform.")]
+    [SerializeField] private Transform shootingPlatform;
+    private Collider[] platformColliders = new Collider[0];
 
     [Header("Spawn Settings")]
     [SerializeField] private float spawnInterval = 1.5f;
@@ -54,6 +73,13 @@ public class TargetSpawner : MonoBehaviour
         {
             playerTransform = Camera.main.transform;
         }
+        if (shootingPlatform == null)
+        {
+            GameObject platform = GameObject.Find("ShootingPlatform");
+            if (platform != null) shootingPlatform = platform.transform;
+        }
+        if (shootingPlatform != null)
+            platformColliders = shootingPlatform.GetComponentsInChildren<Collider>(true);
     }
 
     private void Update()
@@ -119,6 +145,13 @@ public class TargetSpawner : MonoBehaviour
             return; // Skip this interval when all retry positions are unsafe.
         }
         targetObject.transform.position = spawnPosition;
+        if (facePlayerOnSpawn)
+        {
+            Vector3 facing = playerTransform.position - spawnPosition;
+            facing.y = 0f;
+            if (facing.sqrMagnitude > 0.0001f)
+                targetObject.transform.rotation = Quaternion.LookRotation(facing, Vector3.up);
+        }
 
         AddMovementIfNeeded(targetObject);
         target.Configure(CurrentMode, Random.Range(minReactionDelay,
@@ -193,16 +226,30 @@ public class TargetSpawner : MonoBehaviour
 
         for (int attempt = 0; attempt < Mathf.Max(1, spawnAttempts); attempt++)
         {
-            Vector3 candidate = playerTransform.position + forward * Random.Range(minDistance, maxDistance)
-                + right * Random.Range(-spawnRadius, spawnRadius);
+            Vector3 candidate = GetRandomAreaPosition(forward, right);
+            if (spawnAreaMode == SpawnAreaMode.ForwardRectangle)
+            {
+                Vector3 fromPlayer = candidate - playerTransform.position;
+                fromPlayer.y = 0f;
+                // Even a misplaced rectangle center must not spawn behind the player.
+                if (Vector3.Dot(fromPlayer, forward) <= 0f || IsOverPlatform(candidate)) continue;
+            }
             float rayHeight = groundedPrefab ? groundRaycastHeight : groundRayHeight;
             Vector3 rayOrigin = candidate + Vector3.up * rayHeight;
             RaycastHit[] groundHits = Physics.RaycastAll(rayOrigin, Vector3.down,
                 groundRayDistance, groundLayers, QueryTriggerInteraction.Ignore);
             bool foundGround = false;
+            bool hitPlatform = false;
             float groundY = float.NegativeInfinity;
             foreach (RaycastHit hit in groundHits)
             {
+                // Reject the entire candidate, not just this hit: otherwise a ray
+                // could select the arena floor underneath the shooting platform.
+                if (spawnAreaMode == SpawnAreaMode.ForwardRectangle && IsPlatformCollider(hit.collider))
+                {
+                    hitPlatform = true;
+                    break;
+                }
                 // Never treat the player or other targets as ground.
                 if (hit.collider.transform.IsChildOf(targetObject.transform) ||
                     hit.collider.GetComponentInParent<Target>() != null ||
@@ -211,7 +258,7 @@ public class TargetSpawner : MonoBehaviour
                 groundY = Mathf.Max(groundY, hit.point.y);
                 foundGround = true;
             }
-            if (!foundGround) continue;
+            if (!foundGround || hitPlatform) continue;
 
             if (groundedPrefab)
             {
@@ -237,6 +284,54 @@ public class TargetSpawner : MonoBehaviour
             spawnPosition = candidate;
             return true;
         }
+        return false;
+    }
+
+    private Vector3 GetRandomAreaPosition(Vector3 forward, Vector3 right)
+    {
+        if (spawnAreaMode == SpawnAreaMode.AroundPlayer)
+        {
+            // Preserve the original forward-distance and lateral-radius placement.
+            return playerTransform.position + forward * Random.Range(minDistance, maxDistance)
+                + right * Random.Range(-spawnRadius, spawnRadius);
+        }
+
+        float halfWidth = Mathf.Max(0f, spawnAreaWidth) * 0.5f;
+        if (spawnAreaCenter != null)
+        {
+            // Center defines a world X/Z rectangle; its rotation is not used.
+            float halfDepth = Mathf.Max(0f, spawnAreaDepth) * 0.5f;
+            Vector3 center = spawnAreaCenter.position;
+            return new Vector3(center.x + Random.Range(-halfWidth, halfWidth),
+                Mathf.Max(center.y, playerTransform.position.y),
+                center.z + Random.Range(-halfDepth, halfDepth));
+        }
+
+        // Local Z means distance along the player's flattened forward direction.
+        float minimum = Mathf.Max(0f, forwardAreaMinZ);
+        float maximum = Mathf.Max(minimum, forwardAreaMaxZ);
+        return playerTransform.position + right * Random.Range(-halfWidth, halfWidth)
+            + forward * Random.Range(minimum, maximum);
+    }
+
+    private bool IsOverPlatform(Vector3 position)
+    {
+        foreach (Collider platform in platformColliders)
+        {
+            if (platform == null || !platform.enabled || !platform.gameObject.activeInHierarchy) continue;
+            Bounds bounds = platform.bounds;
+            if (position.x >= bounds.min.x && position.x <= bounds.max.x &&
+                position.z >= bounds.min.z && position.z <= bounds.max.z) return true;
+        }
+        return false;
+    }
+
+    private bool IsPlatformCollider(Collider collider)
+    {
+        if (shootingPlatform != null && collider.transform.IsChildOf(shootingPlatform)) return true;
+        // Also handle named platform hierarchies when the reference is unassigned.
+        for (Transform parent = collider.transform; parent != null; parent = parent.parent)
+            if (parent.name == "ShootingPlatform") return true;
         return false;
     }
 

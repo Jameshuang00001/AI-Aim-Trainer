@@ -1,5 +1,37 @@
 # Phase 6: Start Menu
 
+## Shooting Range Spawn Area
+
+TargetSpawner now defaults to ForwardRectangle. Assign EnemyTarget and keep Spawn
+Targets On Ground enabled. Assign Player Transform to the player root or camera.
+Assign Shooting Platform to the platform hierarchy root; if omitted, the script
+tries to find an active object named ShootingPlatform. Its collider footprint is
+excluded even when Ground Layers contains only the arena floor. The platform must
+have enabled colliders for footprint exclusion.
+
+For a fixed range, create an empty SpawnAreaCenter in front of the platform and
+assign it. Spawn Area Width (12) and Depth (14) define a world-aligned X/Z rectangle
+centered there; center rotation does not rotate the rectangle. Y comes from ground
+raycasts plus Ground Offset, not the center height. Candidates behind the player's
+current horizontal forward direction are rejected, so keep the player facing the
+range and the center clearly ahead.
+
+Without a center, Width controls lateral spread and Forward Area Min Z (8) / Max Z
+(22) control distance along the player's horizontal forward direction. Depth is
+only used with an assigned center. Face Player On Spawn defaults on and applies
+upright yaw rotation, assuming the model faces local +Z.
+
+AroundPlayer preserves the previous forward-distance/lateral-radius placement.
+Primitive fallback remains floating; grounded humanoids use ground hits. Failed
+positions retry up to Spawn Attempts, then skip that spawn interval. Moving
+targets retain their existing spawn-centered movement; this rectangle restricts
+initial spawning, not the full movement path.
+
+Play-mode checks: test each training mode with fixed center and player-relative
+placement, confirm humanoids face the player and never spawn on the platform or
+behind the player, and verify ground placement, hits, death, Escape summary, and
+R restart. Use Ground Layers containing only the range floor where practical.
+
 ## Humanoid Roaming and Death Grounding
 
 Grounded prefabs with an Animator now use random roaming in Moving Targets mode.

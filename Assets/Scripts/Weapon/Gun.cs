@@ -8,6 +8,7 @@ public class Gun : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private Camera playerCamera;
+    [SerializeField] private UIManager uiManager;
 
     [Header("Shooting")]
     [SerializeField] private float range = 100f;
@@ -19,6 +20,7 @@ public class Gun : MonoBehaviour
 
     private void Awake()
     {
+        if (uiManager == null) uiManager = FindObjectOfType<UIManager>();
         if (playerCamera == null)
         {
             playerCamera = Camera.main;
@@ -63,11 +65,24 @@ public class Gun : MonoBehaviour
         if (Physics.Raycast(ray, out RaycastHit hitInfo, range,
             Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide))
         {
-            Target target = hitInfo.collider.GetComponentInParent<Target>();
+            HitZone hitZone = hitInfo.collider.GetComponent<HitZone>();
+            Target target = hitZone != null ? hitZone.TargetParent
+                : hitInfo.collider.GetComponentInParent<Target>();
+            HitZoneType zone = hitZone != null ? hitZone.Zone : HitZoneType.Body;
 
             if (target != null)
             {
-                target.Hit();
+                if (target.TryHit(zone))
+                {
+                    Debug.Log(zone == HitZoneType.Head ? "Headshot detected" : "Body hit detected", this);
+                    if (uiManager == null) uiManager = FindObjectOfType<UIManager>();
+                    if (uiManager != null)
+                    {
+                        if (zone == HitZoneType.Head) uiManager.ShowHeadshotMarker();
+                        else uiManager.ShowBodyHitMarker();
+                    }
+                    else Debug.LogWarning("UIManager is missing; hit marker cannot be displayed.", this);
+                }
                 return;
             }
         }

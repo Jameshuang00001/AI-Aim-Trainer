@@ -20,6 +20,34 @@ using UnityEngine.UI;
 /// </summary>
 public class UIManager : MonoBehaviour
 {
+    [Header("Hit Markers")]
+    [SerializeField] private HitMarkerUI hitMarkerUI;
+    private bool triedFindingHitMarker;
+
+    public void ShowBodyHitMarker()
+    {
+        if (FindHitMarkerIfNeeded()) hitMarkerUI.ShowBodyHit();
+    }
+
+    public void ShowHeadshotMarker()
+    {
+        if (FindHitMarkerIfNeeded()) hitMarkerUI.ShowHeadshot();
+    }
+
+    private bool FindHitMarkerIfNeeded()
+    {
+        if (hitMarkerUI != null) return true;
+        if (!triedFindingHitMarker)
+        {
+            triedFindingHitMarker = true;
+            // Include inactive objects: the marker root may intentionally start hidden.
+            hitMarkerUI = FindObjectOfType<HitMarkerUI>(true);
+            if (hitMarkerUI == null)
+                Debug.Log("HitMarkerUI is missing. Assign it on UIManager or add it under the Canvas.", this);
+        }
+        return hitMarkerUI != null;
+    }
+
     [Header("Start Menu")]
     [SerializeField] private GameObject startMenuPanel;
     [SerializeField] private Text modeSelectText;

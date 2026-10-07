@@ -19,18 +19,16 @@ overrides should be updated manually to the new defaults if needed.
 Ground probes reject missing ground and abrupt steps. This is lightweight roaming,
 not NavMesh pathfinding. Use an open arena; complex obstacle navigation is not included.
 
-Target's Settle Death On Ground defaults on. Death Ground Layers should contain
-only arena floor colliders if possible. The short death period samples the animated
-skinned mesh (not its standing bounds), then moves only the collider-disabled target
-vertically toward the floor. Death Settle Speed controls the correction. This also
-handles animation height offsets without changing the player or shared model asset.
-The mesh buffer is reused and destroyed with the target. Increase Death Destroy
-Delay if the death animation needs longer than 1.2 seconds to finish.
+Death behavior is intentionally simple: disable colliders and TargetMovement,
+set IsMoving false, trigger Death once, then destroy after Death Destroy Delay
+(default 1.5 seconds). Root motion stays disabled. There are no death ground
+raycasts, upward corrections, saved-height restores, or visual-root locks.
+The animation plays its normal pose even if the body sinks slightly into the floor.
 
 Verify in Play mode: Moving Targets walk facing travel, stop into Idle, then resume
 in varied directions; their radius remains bounded. Shoot standing and moving targets
-and check the body settles onto the floor. Select the floor layer for both spawning
-and death grounding so walls or other props are not mistaken for ground.
+and check the normal death animation plays without a scripted height adjustment.
+Select the floor layer for spawning so props are not mistaken for ground.
 
 ## Gameplay Polish Settings
 

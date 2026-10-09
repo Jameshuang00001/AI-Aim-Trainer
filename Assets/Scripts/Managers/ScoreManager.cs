@@ -104,7 +104,7 @@ public class ScoreManager : MonoBehaviour
     private bool CanRegisterStats()
     {
         // Menu and completed sessions must not change the score.
-        return SessionManager.Instance != null && SessionManager.Instance.IsSessionActive;
+        return SessionManager.Instance != null && SessionManager.Instance.IsSessionActive && !SessionManager.Instance.IsPaused;
     }
 
     private void LogStats()

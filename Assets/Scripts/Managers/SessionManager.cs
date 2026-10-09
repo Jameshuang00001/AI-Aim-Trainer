@@ -5,6 +5,7 @@ using UnityEngine.SceneManagement;
 /// Controls a timed aim training session.
 /// Place one SessionManager in the scene. GameModeManager starts it from the menu.
 /// </summary>
+[DefaultExecutionOrder(-1000)]
 public class SessionManager : MonoBehaviour
 {
     public static SessionManager Instance { get; private set; }
@@ -18,6 +19,10 @@ public class SessionManager : MonoBehaviour
     public float RemainingTime { get; private set; }
     public bool IsSessionActive { get; private set; }
     public bool IsSessionComplete { get; private set; }
+    public bool IsPaused { get; private set; }
+    private float resumeTimeScale = 1f;
+    private int resumedFrame = -1;
+    public bool CanShoot => IsSessionActive && !IsPaused && Time.frameCount != resumedFrame;
 
     private void Awake()
     {
@@ -28,6 +33,8 @@ public class SessionManager : MonoBehaviour
         }
 
         Instance = this;
+        if (FindObjectOfType<SettingsMenuManager>(true) == null)
+            gameObject.AddComponent<SettingsMenuManager>();
         RemainingTime = Mathf.Max(0f, sessionDuration);
 
         if (uiManager == null)
@@ -49,12 +56,14 @@ public class SessionManager : MonoBehaviour
             return;
         }
 
-        // Escape uses the same cleanup and summary path as timer expiration.
         if (Input.GetKeyDown(KeyCode.Escape))
         {
-            EndSession();
+            SettingsMenuManager settings = FindObjectOfType<SettingsMenuManager>(true);
+            if (settings != null) settings.ToggleSettings();
             return;
         }
+
+        if (IsPaused) return;
 
         RemainingTime -= Time.deltaTime;
 
@@ -90,6 +99,9 @@ public class SessionManager : MonoBehaviour
             return;
         }
 
+        SetPaused(false);
+        SettingsMenuManager settings = FindObjectOfType<SettingsMenuManager>(true);
+        if (settings != null) settings.HidePanel();
         RemainingTime = 0f;
         IsSessionActive = false;
         IsSessionComplete = true;
@@ -99,6 +111,29 @@ public class SessionManager : MonoBehaviour
         DestroyActiveTargets();
         ShowSessionCompleteUI();
         LogFinalStats();
+    }
+
+    public void SetPaused(bool paused)
+    {
+        if (paused == IsPaused || (paused && !IsSessionActive)) return;
+        if (paused) resumeTimeScale = Time.timeScale;
+        IsPaused = paused;
+        if (!paused)
+        {
+            resumedFrame = Time.frameCount;
+            Input.ResetInputAxes();
+        }
+        // Scaled timers, target movement, and animations freeze together.
+        Time.timeScale = paused ? 0f : resumeTimeScale;
+        Cursor.lockState = paused ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = paused;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance != this) return;
+        if (IsPaused) Time.timeScale = resumeTimeScale;
+        Instance = null;
     }
 
     private void DestroyActiveTargets()

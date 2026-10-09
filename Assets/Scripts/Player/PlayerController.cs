@@ -30,6 +30,12 @@ public class PlayerController : MonoBehaviour
     private float lastGroundedTime = float.NegativeInfinity;
     private float lastJumpPressedTime = float.NegativeInfinity;
     private float cameraPitch;
+    public float MouseSensitivity => mouseSensitivity;
+
+    public void SetMouseSensitivity(float value)
+    {
+        mouseSensitivity = Mathf.Clamp(value, 0.5f, 5f);
+    }
 
     private void Awake()
     {
@@ -52,6 +58,8 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
+        // Preserve jump/gravity state while paused; do not process menu clicks as input.
+        if (SessionManager.Instance != null && SessionManager.Instance.IsPaused) return;
         if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive)
         {
             ResetMovementVelocity();

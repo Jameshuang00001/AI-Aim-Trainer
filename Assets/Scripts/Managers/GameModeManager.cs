@@ -8,7 +8,7 @@ public enum AimTrainingMode
     ReactionTargets
 }
 
-/// <summary>Stores the menu selection and starts gameplay when Start is pressed.</summary>
+/// <summary>Starts in Static Targets; settings can change the mode during gameplay.</summary>
 public class GameModeManager : MonoBehaviour
 {
     public static GameModeManager Instance { get; private set; }
@@ -22,11 +22,13 @@ public class GameModeManager : MonoBehaviour
     public void SetFlickTargetsMode() => SetMode(AimTrainingMode.FlickTargets);
     public void SetReactionTargetsMode() => SetMode(AimTrainingMode.ReactionTargets);
 
-    private void SetMode(AimTrainingMode mode)
+    public void SetMode(AimTrainingMode mode)
     {
-        // Keep the mode fixed during a session so existing targets stay consistent.
-        if (HasGameStarted) return;
+        if (!System.Enum.IsDefined(typeof(AimTrainingMode), mode) || currentMode == mode) return;
         currentMode = mode;
+        if (SessionManager.Instance != null && SessionManager.Instance.IsSessionActive)
+            foreach (TargetSpawner spawner in FindObjectsOfType<TargetSpawner>())
+                spawner.ResetForModeChange();
         UIManager ui = FindObjectOfType<UIManager>();
         if (ui != null) ui.RefreshMode();
     }
@@ -40,6 +42,8 @@ public class GameModeManager : MonoBehaviour
             return;
         }
 
+        // Starting never depends on a previous menu selection or Inspector override.
+        SetMode(AimTrainingMode.StaticTargets);
         HasGameStarted = true;
         SessionManager.Instance.BeginSession();
         UIManager ui = FindObjectOfType<UIManager>();
@@ -57,6 +61,7 @@ public class GameModeManager : MonoBehaviour
         }
 
         Instance = this;
+        currentMode = AimTrainingMode.StaticTargets;
     }
 
     private void OnDestroy()

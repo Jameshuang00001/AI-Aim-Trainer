@@ -108,14 +108,10 @@ public class UIManager : MonoBehaviour
         }
 
         RefreshSession();
-        // Assigning button references wires them automatically; no manual OnClick needed.
+        // Only Start is wired here. Mode selection belongs to the settings menu.
         if (GameModeManager.Instance != null)
         {
             GameModeManager modes = GameModeManager.Instance;
-            if (staticModeButton != null) staticModeButton.onClick.AddListener(modes.SetStaticTargetsMode);
-            if (movingModeButton != null) movingModeButton.onClick.AddListener(modes.SetMovingTargetsMode);
-            if (flickModeButton != null) flickModeButton.onClick.AddListener(modes.SetFlickTargetsMode);
-            if (reactionModeButton != null) reactionModeButton.onClick.AddListener(modes.SetReactionTargetsMode);
             if (startButton != null) startButton.onClick.AddListener(modes.StartGame);
         }
         ShowStartMenu();
@@ -150,14 +146,16 @@ public class UIManager : MonoBehaviour
                 SetText(modeInstructionText, "Hit stationary targets accurately.");
                 break;
         }
-        if (modeSelectText != null && trainingModeText != null)
-            modeSelectText.text = trainingModeText.text;
-        else
-            SetText(modeSelectText, $"Selected Mode: {mode}");
     }
 
     public void ShowStartMenu()
     {
+        // Retain old scene references for compatibility, but hide their controls.
+        if (staticModeButton != null) staticModeButton.gameObject.SetActive(false);
+        if (movingModeButton != null) movingModeButton.gameObject.SetActive(false);
+        if (flickModeButton != null) flickModeButton.gameObject.SetActive(false);
+        if (reactionModeButton != null) reactionModeButton.gameObject.SetActive(false);
+        SetText(modeSelectText, "AI Aim Trainer");
         if (startMenuPanel != null) startMenuPanel.SetActive(true);
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;

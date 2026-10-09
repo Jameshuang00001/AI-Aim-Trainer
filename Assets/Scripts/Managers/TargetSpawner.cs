@@ -86,7 +86,7 @@ public class TargetSpawner : MonoBehaviour
     {
         RemoveDestroyedTargets();
 
-        if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive)
+        if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive || SessionManager.Instance.IsPaused)
         {
             return;
         }
@@ -101,7 +101,7 @@ public class TargetSpawner : MonoBehaviour
 
     private void SpawnTarget()
     {
-        if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive)
+        if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive || SessionManager.Instance.IsPaused)
         {
             return;
         }
@@ -358,5 +358,11 @@ public class TargetSpawner : MonoBehaviour
         }
 
         activeTargets.Clear();
+    }
+
+    public void ResetForModeChange()
+    {
+        DestroyActiveTargets();
+        nextSpawnTime = Time.time;
     }
 }

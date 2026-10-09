@@ -121,7 +121,7 @@ public class Target : MonoBehaviour
     public bool TryHit(HitZoneType zone)
     {
         if (!enabled) return false;
-        if (SessionManager.Instance != null && !SessionManager.Instance.IsSessionActive) return false;
+        if (SessionManager.Instance != null && (!SessionManager.Instance.IsSessionActive || SessionManager.Instance.IsPaused)) return false;
         if (hasBeenHit)
         {
             return false;

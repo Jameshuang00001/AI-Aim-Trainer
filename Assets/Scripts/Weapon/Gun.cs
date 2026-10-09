@@ -67,7 +67,7 @@ public class Gun : MonoBehaviour
 
     private void Shoot()
     {
-        if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive)
+        if (SessionManager.Instance == null || !SessionManager.Instance.CanShoot)
         {
             return;
         }

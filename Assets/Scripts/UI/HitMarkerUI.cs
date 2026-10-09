@@ -24,13 +24,11 @@ public class HitMarkerUI : MonoBehaviour
 
     public void ShowBodyHit()
     {
-        Debug.Log("Body hit marker shown", this);
         Show(false);
     }
 
     public void ShowHeadshot()
     {
-        Debug.Log("Headshot marker shown", this);
         Show(true);
     }
 

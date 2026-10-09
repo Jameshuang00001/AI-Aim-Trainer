@@ -38,8 +38,7 @@ Play-mode checks: shoot body, limb, and head separately and confirm 4/4/8 lines.
 Check repeated hits restart the fade, the crosshair color never changes, reaction
 misses show no marker, and session end/restart and humanoid death still work.
 
-Console diagnostics: accepted hits log "Body hit detected" or "Headshot detected",
-followed by "Body hit marker shown" or "Headshot marker shown". A missing marker
-component logs a setup message. If both messages appear but nothing renders, check
+Console diagnostics: a missing marker component logs a setup message.
+If an accepted hit shows no marker, check
 the eight Image references, active Canvas/parents, CanvasGroup alpha, clipping,
 and marker root scale/position. Use separate line Images, never the crosshair.

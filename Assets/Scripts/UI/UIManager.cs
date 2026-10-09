@@ -357,7 +357,10 @@ public class UIManager : MonoBehaviour
                 crosshairText.text = "+";
             }
 
+            // Blank lines and font line metrics can shift a '+' inside a centered rect.
+            crosshairText.text = crosshairText.text.Trim();
             crosshairText.alignment = TextAnchor.MiddleCenter;
+            crosshairText.alignByGeometry = true;
             crosshairText.enabled = true;
             return;
         }
@@ -388,6 +391,7 @@ public class UIManager : MonoBehaviour
         crosshairText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
         crosshairText.fontSize = 24;
         crosshairText.alignment = TextAnchor.MiddleCenter;
+        crosshairText.alignByGeometry = true;
         crosshairText.color = Color.white;
         crosshairText.raycastTarget = false;
     }

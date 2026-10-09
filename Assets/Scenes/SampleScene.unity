@@ -2737,7 +2737,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: New Text
+  m_Text: Hits
 --- !u!222 &657891685
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -5004,7 +5004,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: New Text
+  m_Text: Reaction
 --- !u!222 &1139951082
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -7274,7 +7274,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: New Text
+  m_Text: Accuracy
 --- !u!222 &1744934257
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -7573,7 +7573,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: New Text
+  m_Text: Misses
 --- !u!222 &1805847032
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -8305,7 +8305,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: New Text
+  m_Text: Shots
 --- !u!222 &1991902497
 CanvasRenderer:
   m_ObjectHideFlags: 0

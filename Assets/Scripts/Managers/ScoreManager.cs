@@ -20,6 +20,7 @@ public class ScoreManager : MonoBehaviour
     public float LatestReactionTime { get; private set; }
 
     private float totalReactionTime;
+    private readonly SessionJsonLog sessionLog = new SessionJsonLog();
 
     private void Awake()
     {
@@ -45,12 +46,14 @@ public class ScoreManager : MonoBehaviour
         }
 
         ShotsFired++;
+        sessionLog.RegisterShot();
         UpdateAccuracy();
         NotifyStatsChanged();
     }
 
     public void ResetStats()
     {
+        sessionLog.Begin();
         ShotsFired = 0;
         Hits = 0;
         Misses = 0;
@@ -61,7 +64,7 @@ public class ScoreManager : MonoBehaviour
         NotifyStatsChanged();
     }
 
-    public void RegisterHit(float reactionTime)
+    public void RegisterHit(float reactionTime, string targetId = null)
     {
         if (!CanRegisterStats())
         {
@@ -69,6 +72,7 @@ public class ScoreManager : MonoBehaviour
         }
 
         Hits++;
+        sessionLog.RegisterResult(true, targetId, reactionTime);
         LatestReactionTime = reactionTime;
         totalReactionTime += reactionTime;
         AverageReactionTime = totalReactionTime / Hits;
@@ -79,7 +83,7 @@ public class ScoreManager : MonoBehaviour
         LogStats();
     }
 
-    public void RegisterMiss()
+    public void RegisterMiss(string targetId = null)
     {
         if (!CanRegisterStats())
         {
@@ -87,6 +91,7 @@ public class ScoreManager : MonoBehaviour
         }
 
         Misses++;
+        sessionLog.RegisterResult(false, targetId);
         UpdateAccuracy();
         NotifyStatsChanged();
         if (uiManager != null) uiManager.ShowMissFeedback();
@@ -97,6 +102,11 @@ public class ScoreManager : MonoBehaviour
     {
         uiManager = newUIManager;
         NotifyStatsChanged();
+    }
+
+    public void ExportSessionJson()
+    {
+        sessionLog.Export(this);
     }
 
     private void UpdateAccuracy()

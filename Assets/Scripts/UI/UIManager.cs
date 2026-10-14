@@ -274,6 +274,7 @@ public class UIManager : MonoBehaviour
         ClearMissFeedback();
 
         ScoreManager stats = ScoreManager.Instance;
+        if (stats != null) stats.ExportSessionJson();
         AimTrainingMode mode = GameModeManager.Instance != null
             ? GameModeManager.Instance.CurrentMode : AimTrainingMode.StaticTargets;
         string modeName;

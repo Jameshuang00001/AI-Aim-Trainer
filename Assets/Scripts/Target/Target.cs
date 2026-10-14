@@ -8,6 +8,7 @@ using UnityEngine;
 public class Target : MonoBehaviour
 {
     public float SpawnTime { get; private set; }
+    public string TargetId { get; private set; }
     public bool IsHittable { get; private set; }
     public event Action<Target> HitRegistered;
     public event Action<Target> DeathFinished;
@@ -31,6 +32,7 @@ public class Target : MonoBehaviour
 
     private void Awake()
     {
+        TargetId = Guid.NewGuid().ToString("N");
         // Reject an accidentally attached Target on the player or a parent of it.
         if (GetComponentInChildren<PlayerController>(true) != null ||
             GetComponentInParent<PlayerController>() != null)
@@ -130,7 +132,7 @@ public class Target : MonoBehaviour
         if (!IsHittable)
         {
             // Early reaction shots count as misses; the target remains until a valid hit.
-            if (ScoreManager.Instance != null) ScoreManager.Instance.RegisterMiss();
+            if (ScoreManager.Instance != null) ScoreManager.Instance.RegisterMiss(TargetId);
             return false;
         }
 
@@ -145,7 +147,7 @@ public class Target : MonoBehaviour
 
         if (ScoreManager.Instance != null)
         {
-            ScoreManager.Instance.RegisterHit(reactionTime);
+            ScoreManager.Instance.RegisterHit(reactionTime, TargetId);
         }
         SetColor(hitColor);
         HitRegistered?.Invoke(this);

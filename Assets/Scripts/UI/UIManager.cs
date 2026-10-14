@@ -50,11 +50,6 @@ public class UIManager : MonoBehaviour
 
     [Header("Start Menu")]
     [SerializeField] private GameObject startMenuPanel;
-    [SerializeField] private Text modeSelectText;
-    [SerializeField] private Button staticModeButton;
-    [SerializeField] private Button movingModeButton;
-    [SerializeField] private Button flickModeButton;
-    [SerializeField] private Button reactionModeButton;
     [SerializeField] private Button startButton;
 
     [Header("Stats Text")]
@@ -63,6 +58,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Text missesText;
     [SerializeField] private Text accuracyText;
     [SerializeField] private Text averageReactionTimeText;
+    [SerializeField] private Text latestReactionText;
 
     [Header("Session Text")]
     [SerializeField] private Text sessionTimeText;
@@ -139,23 +135,18 @@ public class UIManager : MonoBehaviour
                 break;
             case AimTrainingMode.ReactionTargets:
                 SetText(trainingModeText, "Mode: Reaction Targets");
-                SetText(modeInstructionText, "Wait for red, then shoot. Gray hits count as misses.");
+                SetText(modeInstructionText, "Keep aiming at the center bot. Shoot when it turns red.");
                 break;
             default:
                 SetText(trainingModeText, "Mode: Static Targets");
                 SetText(modeInstructionText, "Hit stationary targets accurately.");
                 break;
         }
+        if (latestReactionText != null) latestReactionText.gameObject.SetActive(mode == AimTrainingMode.ReactionTargets);
     }
 
     public void ShowStartMenu()
     {
-        // Retain old scene references for compatibility, but hide their controls.
-        if (staticModeButton != null) staticModeButton.gameObject.SetActive(false);
-        if (movingModeButton != null) movingModeButton.gameObject.SetActive(false);
-        if (flickModeButton != null) flickModeButton.gameObject.SetActive(false);
-        if (reactionModeButton != null) reactionModeButton.gameObject.SetActive(false);
-        SetText(modeSelectText, "AI Aim Trainer");
         if (startMenuPanel != null) startMenuPanel.SetActive(true);
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
@@ -180,6 +171,12 @@ public class UIManager : MonoBehaviour
         SetText(missesText, $"Misses: {scoreManager.Misses}");
         SetText(accuracyText, $"Accuracy: {scoreManager.AccuracyPercentage:F1}%");
         SetText(averageReactionTimeText, $"Avg Reaction: {scoreManager.AverageReactionTime:F3}s");
+        SetText(latestReactionText, $"Latest Reaction: {scoreManager.LatestReactionTime:F3}s");
+        // Existing scenes can show the latest result without adding another Text.
+        if (latestReactionText == null && GameModeManager.Instance != null &&
+            GameModeManager.Instance.CurrentMode == AimTrainingMode.ReactionTargets)
+            SetText(averageReactionTimeText, $"Latest Reaction: {scoreManager.LatestReactionTime:F3}s\n" +
+                $"Avg Reaction: {scoreManager.AverageReactionTime:F3}s");
     }
 
     public void ShowHitFeedback(float reactionTime)
@@ -246,7 +243,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    private void RefreshSession()
+    public void RefreshSession()
     {
         SessionManager sessionManager = SessionManager.Instance;
 
@@ -257,7 +254,8 @@ public class UIManager : MonoBehaviour
             return;
         }
 
-        SetText(sessionTimeText, $"Time: {Mathf.CeilToInt(sessionManager.RemainingTime)}");
+        SetText(sessionTimeText, sessionManager.UnlimitedTime && !sessionManager.IsSessionComplete
+            ? "Time: Unlimited" : $"Time: {Mathf.CeilToInt(sessionManager.RemainingTime)}");
 
         if (sessionManager.IsSessionComplete)
         {

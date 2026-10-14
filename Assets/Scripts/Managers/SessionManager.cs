@@ -11,7 +11,10 @@ public class SessionManager : MonoBehaviour
     public static SessionManager Instance { get; private set; }
 
     [Header("Session")]
-    [SerializeField, Min(0f)] private float sessionDuration = 30f;
+    [SerializeField] private bool unlimitedTime = true;
+    [SerializeField, Min(1f)] private float selectedTimeLimit = 60f;
+    public bool UnlimitedTime => unlimitedTime;
+    public float SelectedTimeLimit => selectedTimeLimit;
 
     [Header("UI")]
     [SerializeField] private UIManager uiManager;
@@ -35,7 +38,7 @@ public class SessionManager : MonoBehaviour
         Instance = this;
         if (FindObjectOfType<SettingsMenuManager>(true) == null)
             gameObject.AddComponent<SettingsMenuManager>();
-        RemainingTime = Mathf.Max(0f, sessionDuration);
+        RemainingTime = unlimitedTime ? 0f : Mathf.Max(1f, selectedTimeLimit);
 
         if (uiManager == null)
         {
@@ -63,7 +66,7 @@ public class SessionManager : MonoBehaviour
             return;
         }
 
-        if (IsPaused) return;
+        if (IsPaused || unlimitedTime) return;
 
         RemainingTime -= Time.deltaTime;
 
@@ -83,13 +86,43 @@ public class SessionManager : MonoBehaviour
         if (IsSessionActive) return;
         DestroyActiveTargets();
         if (ScoreManager.Instance != null) ScoreManager.Instance.ResetStats();
-        RemainingTime = Mathf.Max(0f, sessionDuration);
+        RemainingTime = unlimitedTime ? 0f : Mathf.Max(1f, selectedTimeLimit);
         IsSessionActive = true;
         IsSessionComplete = false;
 
         if (uiManager != null) uiManager.HideSummaryPanel();
 
-        Debug.Log($"Session started. Duration: {sessionDuration:F0} seconds.");
+        Debug.Log(unlimitedTime ? "Session started. Unlimited time."
+            : $"Session started. Duration: {selectedTimeLimit:F0} seconds.");
+    }
+
+    // Switching time limits resets only the timer, not targets, score, or pause state.
+    public void SetTimeLimit(bool unlimited, float seconds = 60f)
+    {
+        unlimitedTime = unlimited;
+        selectedTimeLimit = Mathf.Max(1f, seconds);
+        RemainingTime = unlimitedTime ? 0f : selectedTimeLimit;
+    }
+
+    public void ResetSessionData(bool clearTargets = true)
+    {
+        if (!IsSessionActive) return;
+        // Keep the current settings, pause state, and open menu unchanged.
+        RemainingTime = unlimitedTime ? 0f : Mathf.Max(1f, selectedTimeLimit);
+        IsSessionComplete = false;
+        if (clearTargets)
+            foreach (TargetSpawner spawner in FindObjectsOfType<TargetSpawner>())
+                spawner.ResetForModeChange();
+        foreach (Gun gun in FindObjectsOfType<Gun>()) gun.ResetSessionState();
+        if (ScoreManager.Instance != null) ScoreManager.Instance.ResetStats();
+        if (uiManager == null) uiManager = FindObjectOfType<UIManager>();
+        if (uiManager != null)
+        {
+            uiManager.HideSummaryPanel();
+            uiManager.RefreshMode();
+            uiManager.RefreshSession();
+            if (ScoreManager.Instance != null) uiManager.RefreshStats(ScoreManager.Instance);
+        }
     }
 
     public void EndSession()

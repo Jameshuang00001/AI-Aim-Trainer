@@ -57,14 +57,20 @@ public class TargetSpawner : MonoBehaviour
     [SerializeField] private float defaultMovementDistance = 2f;
 
     [Header("Mode Settings")]
-    [SerializeField, Min(0f)] private float flickSpawnDelay = 0.1f;
-    [SerializeField, Min(0f)] private float minReactionDelay = 0.5f;
-    [SerializeField, Min(0f)] private float maxReactionDelay = 2f;
+    [SerializeField, Min(1f)] private float reactionTargetScaleMultiplier = 1.75f;
+    [SerializeField, Min(3f)] private float reactionMinDelay = 3f;
+    [SerializeField, Min(3f)] private float reactionMaxDelay = 6f;
+    [SerializeField, Min(0f)] private float reactionRespawnDelay = 0.5f;
+    [Tooltip("Optional fixed reaction position. Otherwise use the range center or player-forward midpoint.")]
+    [SerializeField] private Transform reactionSpawnPoint;
 
     private AimTrainingMode CurrentMode => GameModeManager.Instance != null
         ? GameModeManager.Instance.CurrentMode : AimTrainingMode.StaticTargets;
 
     private readonly List<Target> activeTargets = new List<Target>();
+    private readonly List<Target> dyingTargets = new List<Target>();
+    private bool hasReactionPosition;
+    private Vector3 reactionPosition;
     private float nextSpawnTime;
 
     private void Awake()
@@ -91,7 +97,9 @@ public class TargetSpawner : MonoBehaviour
             return;
         }
 
-        int targetLimit = CurrentMode == AimTrainingMode.FlickTargets ? 1 : maxActiveTargets;
+        bool reaction = CurrentMode == AimTrainingMode.ReactionTargets;
+        if (reaction && dyingTargets.Count > 0) return;
+        int targetLimit = CurrentMode == AimTrainingMode.FlickTargets || reaction ? 1 : maxActiveTargets;
         if (Time.time >= nextSpawnTime && activeTargets.Count < targetLimit)
         {
             SpawnTarget();
@@ -135,6 +143,8 @@ public class TargetSpawner : MonoBehaviour
 
         Target target = targetObject.GetComponent<Target>();
         if (target == null) target = targetObject.AddComponent<Target>();
+        if (CurrentMode == AimTrainingMode.ReactionTargets)
+            targetObject.transform.localScale *= Mathf.Max(1f, reactionTargetScaleMultiplier);
         // Make fallback and prefab targets non-physical BEFORE syncing their bounds.
         target.ConfigureNonPhysicalColliders();
         Physics.SyncTransforms();
@@ -145,6 +155,11 @@ public class TargetSpawner : MonoBehaviour
             return; // Skip this interval when all retry positions are unsafe.
         }
         targetObject.transform.position = spawnPosition;
+        if (CurrentMode == AimTrainingMode.ReactionTargets)
+        {
+            reactionPosition = spawnPosition;
+            hasReactionPosition = true;
+        }
         if (facePlayerOnSpawn)
         {
             Vector3 facing = playerTransform.position - spawnPosition;
@@ -154,9 +169,11 @@ public class TargetSpawner : MonoBehaviour
         }
 
         AddMovementIfNeeded(targetObject);
-        target.Configure(CurrentMode, Random.Range(minReactionDelay,
-            Mathf.Max(minReactionDelay, maxReactionDelay)));
+        float minimumDelay = Mathf.Max(3.001f, reactionMinDelay);
+        target.Configure(CurrentMode, Random.Range(minimumDelay,
+            Mathf.Max(minimumDelay, reactionMaxDelay)));
         target.HitRegistered += OnTargetHit;
+        target.DeathFinished += OnTargetDeathFinished;
         activeTargets.Add(target);
     }
 
@@ -188,15 +205,31 @@ public class TargetSpawner : MonoBehaviour
     {
         target.HitRegistered -= OnTargetHit;
         activeTargets.Remove(target);
+        dyingTargets.Add(target);
         if (CurrentMode == AimTrainingMode.FlickTargets)
         {
-            nextSpawnTime = Time.time + flickSpawnDelay;
+            // The old bot's colliders are already disabled; its death can overlap.
+            nextSpawnTime = Time.time;
+            SpawnTarget();
         }
+    }
+
+    private void OnTargetDeathFinished(Target target)
+    {
+        target.DeathFinished -= OnTargetDeathFinished;
+        dyingTargets.Remove(target);
+        if (CurrentMode == AimTrainingMode.ReactionTargets)
+            nextSpawnTime = Time.time + reactionRespawnDelay;
     }
 
     private bool TryGetSpawnPosition(GameObject targetObject, out Vector3 spawnPosition)
     {
         spawnPosition = Vector3.zero;
+        if (CurrentMode == AimTrainingMode.ReactionTargets && hasReactionPosition)
+        {
+            spawnPosition = reactionPosition;
+            return true;
+        }
         // Humanoid roots go directly on the ground; fallback spheres retain clearance.
         bool groundedPrefab = spawnTargetsOnGround && targetPrefab != null;
         Bounds bounds = new Bounds(targetObject.transform.position, Vector3.zero);
@@ -226,7 +259,9 @@ public class TargetSpawner : MonoBehaviour
 
         for (int attempt = 0; attempt < Mathf.Max(1, spawnAttempts); attempt++)
         {
-            Vector3 candidate = GetRandomAreaPosition(forward, right);
+            // Reaction uses one fixed center candidate, never random target placement.
+            Vector3 candidate = CurrentMode == AimTrainingMode.ReactionTargets
+                ? GetReactionAreaPosition(forward) : GetRandomAreaPosition(forward, right);
             if (spawnAreaMode == SpawnAreaMode.ForwardRectangle)
             {
                 Vector3 fromPlayer = candidate - playerTransform.position;
@@ -268,7 +303,8 @@ public class TargetSpawner : MonoBehaviour
                 spawnPosition = candidate;
                 return true;
             }
-            candidate.y = groundY + Random.Range(minimumHeight, maxSpawnHeight);
+            candidate.y = groundY + (CurrentMode == AimTrainingMode.ReactionTargets
+                ? minimumHeight : Random.Range(minimumHeight, maxSpawnHeight));
 
             // A bounds check also rejects slopes, walls, and other overlapping targets.
             bool blocked = false;
@@ -314,6 +350,13 @@ public class TargetSpawner : MonoBehaviour
             + forward * Random.Range(minimum, maximum);
     }
 
+    private Vector3 GetReactionAreaPosition(Vector3 forward)
+    {
+        if (reactionSpawnPoint != null) return reactionSpawnPoint.position;
+        if (spawnAreaCenter != null) return spawnAreaCenter.position;
+        return playerTransform.position + forward * Mathf.Max(1f, (forwardAreaMinZ + forwardAreaMaxZ) * 0.5f);
+    }
+
     private bool IsOverPlatform(Vector3 position)
     {
         foreach (Collider platform in platformColliders)
@@ -337,6 +380,7 @@ public class TargetSpawner : MonoBehaviour
 
     private void RemoveDestroyedTargets()
     {
+        dyingTargets.RemoveAll(target => target == null);
         for (int i = activeTargets.Count - 1; i >= 0; i--)
         {
             if (activeTargets[i] == null)
@@ -348,11 +392,23 @@ public class TargetSpawner : MonoBehaviour
 
     public void DestroyActiveTargets()
     {
+        foreach (Target target in dyingTargets)
+        {
+            if (target == null) continue;
+            target.DeathFinished -= OnTargetDeathFinished;
+            target.gameObject.SetActive(false);
+            Destroy(target.gameObject);
+        }
+        dyingTargets.Clear();
+        hasReactionPosition = false;
+        nextSpawnTime = Time.time;
         for (int i = activeTargets.Count - 1; i >= 0; i--)
         {
             if (activeTargets[i] != null)
             {
                 activeTargets[i].HitRegistered -= OnTargetHit;
+                activeTargets[i].DeathFinished -= OnTargetDeathFinished;
+                activeTargets[i].gameObject.SetActive(false);
                 Destroy(activeTargets[i].gameObject);
             }
         }

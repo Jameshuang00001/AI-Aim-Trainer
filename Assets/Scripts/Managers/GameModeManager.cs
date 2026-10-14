@@ -45,6 +45,7 @@ public class GameModeManager : MonoBehaviour
         // Starting never depends on a previous menu selection or Inspector override.
         SetMode(AimTrainingMode.StaticTargets);
         HasGameStarted = true;
+        SessionManager.Instance.SetTimeLimit(true);
         SessionManager.Instance.BeginSession();
         UIManager ui = FindObjectOfType<UIManager>();
         if (ui != null) ui.HideStartMenu();

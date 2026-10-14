@@ -13,6 +13,7 @@ public class SettingsMenuManager : MonoBehaviour
     [SerializeField] private Button endSessionButton;
     [SerializeField] private Dropdown fpsLimitDropdown;
     [SerializeField] private Dropdown modeDropdown;
+    [SerializeField] private Dropdown timeLimitDropdown;
     [SerializeField] private Slider sensitivitySlider;
     [SerializeField] private Text sensitivityText;
     [SerializeField] private Text fpsLimitText;
@@ -29,6 +30,18 @@ public class SettingsMenuManager : MonoBehaviour
         if (player == null) player = FindObjectOfType<PlayerController>();
         if (performanceSettings == null) performanceSettings = FindObjectOfType<PerformanceSettings>();
         if (settingsPanel == null) BuildDefaultPanel();
+        // Existing custom panels can assign their own dropdown; otherwise add one.
+        if (timeLimitDropdown == null)
+        {
+            Transform existing = settingsPanel.transform.Find("TimeLimitDropdown");
+            if (existing != null) timeLimitDropdown = existing.GetComponent<Dropdown>();
+        }
+        if (timeLimitDropdown == null) CreateTimeLimitDropdown(true);
+        timeLimitDropdown.ClearOptions();
+        timeLimitDropdown.AddOptions(new System.Collections.Generic.List<string>
+            { "Unlimited", "30 seconds", "60 seconds" });
+        timeLimitDropdown.SetValueWithoutNotify(0);
+        timeLimitDropdown.onValueChanged.AddListener(SetTimeLimitOption);
         if (continueButton != null) continueButton.onClick.AddListener(ContinueSession);
         if (endSessionButton != null) endSessionButton.onClick.AddListener(EndSession);
         if (fpsLimitDropdown != null)
@@ -100,7 +113,9 @@ public class SettingsMenuManager : MonoBehaviour
     public void SetModeOption(int index)
     {
         if (index < 0 || index >= modeNames.Length) return;
-        if (GameModeManager.Instance != null) GameModeManager.Instance.SetMode((AimTrainingMode)index);
+        if (GameModeManager.Instance == null || GameModeManager.Instance.CurrentMode == (AimTrainingMode)index) return;
+        GameModeManager.Instance.SetMode((AimTrainingMode)index);
+        if (SessionManager.Instance != null) SessionManager.Instance.ResetSessionData();
         RefreshControls();
     }
 
@@ -110,8 +125,25 @@ public class SettingsMenuManager : MonoBehaviour
         if (sensitivityText != null) sensitivityText.text = $"Sensitivity: {value:F1}";
     }
 
+    public void SetTimeLimitOption(int index)
+    {
+        if (index < 0 || index > 2 || SessionManager.Instance == null) return;
+        SessionManager session = SessionManager.Instance;
+        bool unlimited = index == 0;
+        float seconds = index == 1 ? 30f : 60f;
+        // Ignore reselecting the same value, including programmatic UI refreshes.
+        if (session.UnlimitedTime == unlimited && (unlimited || Mathf.Approximately(session.SelectedTimeLimit, seconds))) return;
+        session.SetTimeLimit(unlimited, seconds);
+        session.ResetSessionData();
+        RefreshControls();
+    }
+
     private void RefreshControls()
     {
+        SessionManager session = SessionManager.Instance;
+        if (timeLimitDropdown != null && session != null)
+            timeLimitDropdown.SetValueWithoutNotify(session.UnlimitedTime ? 0
+                : session.SelectedTimeLimit <= 30f ? 1 : 2);
         int cap = performanceSettings != null ? performanceSettings.TargetFrameRate : Application.targetFrameRate;
         int capIndex = System.Array.IndexOf(frameRates, cap);
         if (fpsLimitDropdown != null && capIndex >= 0) fpsLimitDropdown.SetValueWithoutNotify(capIndex);
@@ -171,8 +203,29 @@ public class SettingsMenuManager : MonoBehaviour
                 new Vector2(i % 2 == 0 ? -150f : 150f, -60f - i / 2 * 50f), new Vector2(280f, 40f));
             button.onClick.AddListener(() => SetModeOption(option));
         }
-        continueButton = CreateButton("Continue", panel, new Vector2(-150f, -190f), new Vector2(280f, 44f));
-        endSessionButton = CreateButton("End Session", panel, new Vector2(150f, -190f), new Vector2(280f, 44f));
+        CreateText("TimeLimitLabel", "Time Limit", panel, new Vector2(-150f, -165f), new Vector2(280f, 36f));
+        CreateTimeLimitDropdown(false);
+        continueButton = CreateButton("Continue", panel, new Vector2(-150f, -240f), new Vector2(280f, 44f));
+        endSessionButton = CreateButton("End Session", panel, new Vector2(150f, -240f), new Vector2(280f, 44f));
+    }
+
+    private void CreateTimeLimitDropdown(bool customPanel)
+    {
+        // Unity's built-in factory supplies the scrollable template and legacy UI parts.
+        GameObject dropdownObject = DefaultControls.CreateDropdown(new DefaultControls.Resources());
+        dropdownObject.name = "TimeLimitDropdown";
+        RectTransform rect = dropdownObject.GetComponent<RectTransform>();
+        rect.SetParent(settingsPanel.transform, false);
+        rect.sizeDelta = new Vector2(280f, 36f);
+        rect.anchorMin = rect.anchorMax = customPanel ? new Vector2(1f, 1f) : new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = customPanel ? new Vector2(-170f, -65f) : new Vector2(150f, -165f);
+        Font legacyFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        foreach (Text text in dropdownObject.GetComponentsInChildren<Text>(true))
+        {
+            text.font = legacyFont;
+            text.fontSize = 20;
+        }
+        timeLimitDropdown = dropdownObject.GetComponent<Dropdown>();
     }
 
     private RectTransform CreateRect(string name, Transform parent, Vector2 position, Vector2 size)

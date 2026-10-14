@@ -17,6 +17,7 @@ public class ScoreManager : MonoBehaviour
     public int Misses { get; private set; }
     public float AccuracyPercentage { get; private set; }
     public float AverageReactionTime { get; private set; }
+    public float LatestReactionTime { get; private set; }
 
     private float totalReactionTime;
 
@@ -53,6 +54,7 @@ public class ScoreManager : MonoBehaviour
         ShotsFired = 0;
         Hits = 0;
         Misses = 0;
+        LatestReactionTime = 0f;
         totalReactionTime = 0f;
         AccuracyPercentage = 0f;
         AverageReactionTime = 0f;
@@ -67,6 +69,7 @@ public class ScoreManager : MonoBehaviour
         }
 
         Hits++;
+        LatestReactionTime = reactionTime;
         totalReactionTime += reactionTime;
         AverageReactionTime = totalReactionTime / Hits;
 

@@ -10,6 +10,7 @@ public class Target : MonoBehaviour
     public float SpawnTime { get; private set; }
     public bool IsHittable { get; private set; }
     public event Action<Target> HitRegistered;
+    public event Action<Target> DeathFinished;
 
     [Header("Humanoid Animation")]
     [SerializeField] private Animator targetAnimator;
@@ -17,7 +18,6 @@ public class Target : MonoBehaviour
 
     [Header("Target Colors")]
     [SerializeField] private Color normalColor = Color.white;
-    [SerializeField] private Color inactiveColor = Color.gray;
     [SerializeField] private Color activeColor = Color.red;
 
     [Header("Hit Feedback")]
@@ -82,7 +82,7 @@ public class Target : MonoBehaviour
         activationRoutine = null;
         SpawnTime = Time.time;
         IsHittable = mode != AimTrainingMode.ReactionTargets;
-        SetColor(IsHittable ? normalColor : inactiveColor);
+        SetColor(normalColor);
         if (!IsHittable)
         {
             activationRoutine = StartCoroutine(ActivateAfterDelay(reactionDelay));
@@ -147,6 +147,8 @@ public class Target : MonoBehaviour
         {
             ScoreManager.Instance.RegisterHit(reactionTime);
         }
+        SetColor(hitColor);
+        HitRegistered?.Invoke(this);
 
         if (targetAnimator != null)
         {
@@ -166,10 +168,9 @@ public class Target : MonoBehaviour
 
     private IEnumerator DestroyAfterDeath()
     {
-        // Keep the target tracked until its animation finishes, so session cleanup
-        // can still remove it and flick mode waits for this target to disappear.
+        // Spawners track dying targets separately so Flick can spawn immediately.
         yield return new WaitForSeconds(Mathf.Max(0f, deathDestroyDelay));
-        HitRegistered?.Invoke(this);
+        DeathFinished?.Invoke(this);
         Destroy(gameObject);
     }
 
@@ -187,7 +188,7 @@ public class Target : MonoBehaviour
             yield return null;
         }
 
-        HitRegistered?.Invoke(this);
+        DeathFinished?.Invoke(this);
         Destroy(gameObject);
     }
 }

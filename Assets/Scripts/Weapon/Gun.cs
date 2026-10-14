@@ -24,6 +24,12 @@ public class Gun : MonoBehaviour
 
     private float nextFireTime;
 
+    public void ResetSessionState()
+    {
+        ShotsFired = 0;
+        nextFireTime = Time.time;
+    }
+
     private void Awake()
     {
         if (uiManager == null) uiManager = FindObjectOfType<UIManager>();

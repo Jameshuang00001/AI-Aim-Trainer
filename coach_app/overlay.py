@@ -1,0 +1,105 @@
+"""Simple always-on-top Tkinter UI; reports display as plain Markdown text."""
+
+import tkinter as tk
+import queue
+import threading
+from tkinter import messagebox, ttk
+from tkinter.scrolledtext import ScrolledText
+
+if __package__:
+    from .nebius_client import AnalysisError, analyze_session
+    from .session_reader import find_latest_session, read_session, select_session_file
+else:
+    from nebius_client import AnalysisError, analyze_session
+    from session_reader import find_latest_session, read_session, select_session_file
+
+
+class CoachWindow:
+    def __init__(self, root: tk.Tk, session_path: str | None = None) -> None:
+        self.root = root
+        self.session_path = session_path
+        self.results = queue.Queue()
+        self.busy = False
+        self.closed = False
+        root.protocol("WM_DELETE_WINDOW", self.close)
+        root.title("Aim Trainer Coach")
+        root.geometry("580x460")
+        root.minsize(400, 300)
+        root.attributes("-topmost", True)
+        controls = ttk.Frame(root, padding=12)
+        controls.pack(fill="x")
+        self.open_button = ttk.Button(controls, text="Open JSON", command=self.open_file)
+        self.open_button.pack(side="left")
+        self.latest_button = ttk.Button(
+            controls, text="Load Latest", command=self.load_latest,
+            state="normal" if session_path else "disabled",
+        )
+        self.latest_button.pack(side="left", padx=8)
+        self.status = tk.StringVar(value="No session loaded")
+        ttk.Label(root, textvariable=self.status, wraplength=550, padding=12).pack(fill="x")
+        self.report = ScrolledText(root, wrap="word", padx=12, pady=12, state="disabled")
+        self.report.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        if session_path:
+            root.after_idle(self.load_latest)
+        self.poll_id = root.after(100, self.poll_results)
+
+    def open_file(self) -> None:
+        path = select_session_file(self.root)
+        if path is not None:
+            self.load(path)
+
+    def load_latest(self) -> None:
+        try:
+            self.load(find_latest_session(self.session_path))
+        except (OSError, ValueError) as error:
+            messagebox.showerror("Cannot load session", str(error), parent=self.root)
+
+    def load(self, path) -> None:
+        if self.busy or self.closed:
+            return
+        try:
+            session = read_session(path)
+        except (OSError, ValueError) as error:
+            messagebox.showerror("Cannot load session", str(error), parent=self.root)
+            return
+        self.busy = True
+        self.open_button.configure(state="disabled")
+        self.latest_button.configure(state="disabled")
+        self.status.set("Analyzing: " + str(path))
+        self.show_report("Analyzing session...")
+        # Workers never touch Tk widgets; the main thread polls a result queue.
+        threading.Thread(target=self.analyze_worker, args=(session, path), daemon=True).start()
+
+    def analyze_worker(self, session, path) -> None:
+        try:
+            self.results.put((path, analyze_session(session), None))
+        except AnalysisError as error:
+            self.results.put((path, None, str(error)))
+        except Exception:
+            self.results.put((path, None, "Analysis failed unexpectedly. Please try again."))
+
+    def poll_results(self) -> None:
+        if self.closed:
+            return
+        try:
+            path, report, error = self.results.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            self.busy = False
+            self.open_button.configure(state="normal")
+            self.latest_button.configure(state="normal" if self.session_path else "disabled")
+            self.status.set(str(path))
+            self.show_report(error if error else report)
+        self.poll_id = self.root.after(100, self.poll_results)
+
+    def show_report(self, report: str) -> None:
+        self.report.configure(state="normal")
+        self.report.delete("1.0", "end")
+        self.report.insert("1.0", report)
+        self.report.configure(state="disabled")
+
+    def close(self) -> None:
+        self.closed = True
+        self.root.after_cancel(self.poll_id)
+        self.root.destroy()

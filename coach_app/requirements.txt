@@ -1,0 +1,4 @@
+# Python 3.10+.
+openai>=1.0,<3.0
+# Tkinter comes with a Tk-enabled Python installation (e.g. python.org macOS).
+# Tkinter is not installed via pip.

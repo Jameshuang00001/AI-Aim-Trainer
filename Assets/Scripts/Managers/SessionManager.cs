@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Controls a timed aim training session.
@@ -23,6 +22,7 @@ public class SessionManager : MonoBehaviour
     public bool IsSessionActive { get; private set; }
     public bool IsSessionComplete { get; private set; }
     public bool IsPaused { get; private set; }
+    public bool IsSummaryOpen { get; private set; }
     private float resumeTimeScale = 1f;
     private int resumedFrame = -1;
     public bool CanShoot => IsSessionActive && !IsPaused && Time.frameCount != resumedFrame;
@@ -48,21 +48,8 @@ public class SessionManager : MonoBehaviour
 
     private void Update()
     {
-        if (IsSessionComplete && Input.GetKeyDown(KeyCode.R))
-        {
-            RestartCurrentScene();
-            return;
-        }
-
         if (!IsSessionActive)
         {
-            return;
-        }
-
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            SettingsMenuManager settings = FindObjectOfType<SettingsMenuManager>(true);
-            if (settings != null) settings.ToggleSettings();
             return;
         }
 
@@ -89,6 +76,7 @@ public class SessionManager : MonoBehaviour
         RemainingTime = unlimitedTime ? 0f : Mathf.Max(1f, selectedTimeLimit);
         IsSessionActive = true;
         IsSessionComplete = false;
+        IsSummaryOpen = false;
 
         if (uiManager != null) uiManager.HideSummaryPanel();
 
@@ -110,6 +98,7 @@ public class SessionManager : MonoBehaviour
         // Keep the current settings, pause state, and open menu unchanged.
         RemainingTime = unlimitedTime ? 0f : Mathf.Max(1f, selectedTimeLimit);
         IsSessionComplete = false;
+        IsSummaryOpen = false;
         if (clearTargets)
             foreach (TargetSpawner spawner in FindObjectsOfType<TargetSpawner>())
                 spawner.ResetForModeChange();
@@ -132,23 +121,29 @@ public class SessionManager : MonoBehaviour
             return;
         }
 
-        SetPaused(false);
         SettingsMenuManager settings = FindObjectOfType<SettingsMenuManager>(true);
         if (settings != null) settings.HidePanel();
-        RemainingTime = 0f;
-        IsSessionActive = false;
-        IsSessionComplete = true;
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-
-        DestroyActiveTargets();
+        // Expired timers become unlimited; manual viewing preserves a running timer.
+        if (!unlimitedTime && RemainingTime <= 0f) SetTimeLimit(true, selectedTimeLimit);
+        IsSummaryOpen = true;
+        CursorStateManager.GetOrCreate().EnterMenuCursorMode();
         ShowSessionCompleteUI();
         LogFinalStats();
     }
 
+    public void CloseSummary()
+    {
+        if (!IsSummaryOpen) return;
+        IsSummaryOpen = false;
+        if (uiManager != null) uiManager.HideSummaryPanel();
+        CursorStateManager.GetOrCreate().EnterGameplayCursorMode();
+        Debug.Log("Closed SummaryPanel and relocked cursor");
+    }
+
     public void SetPaused(bool paused)
     {
-        if (paused == IsPaused || (paused && !IsSessionActive)) return;
+        if (paused == IsPaused || (paused && !IsSessionActive))
+            return;
         if (paused) resumeTimeScale = Time.timeScale;
         IsPaused = paused;
         if (!paused)
@@ -158,8 +153,6 @@ public class SessionManager : MonoBehaviour
         }
         // Scaled timers, target movement, and animations freeze together.
         Time.timeScale = paused ? 0f : resumeTimeScale;
-        Cursor.lockState = paused ? CursorLockMode.None : CursorLockMode.Locked;
-        Cursor.visible = paused;
     }
 
     private void OnDestroy()
@@ -190,12 +183,6 @@ public class SessionManager : MonoBehaviour
         {
             uiManager.ShowSessionComplete();
         }
-    }
-
-    private void RestartCurrentScene()
-    {
-        Scene currentScene = SceneManager.GetActiveScene();
-        SceneManager.LoadScene(currentScene.buildIndex);
     }
 
     private void LogFinalStats()

@@ -42,5 +42,6 @@ Changing mode or time limit resets reaction and hit stats alongside the other st
 - Hit red: green death, one reaction result, then next bot at the identical spot.
 - Pause during waiting/death: timing and animation freeze and resume normally.
 - Flick: next bot appears on hit, while the old bot is still falling.
-- Mode/time reset or End Session: all live/dying bots disappear and stats reset
-  where appropriate. Summary shows final Hits; R returns to Static + Unlimited.
+- Mode/time reset: live/dying bots disappear and stats reset.
+- End Session opens current stats without removing bots or resetting score.
+  Escape resumes the same practice session. Timed expiry switches to Unlimited.

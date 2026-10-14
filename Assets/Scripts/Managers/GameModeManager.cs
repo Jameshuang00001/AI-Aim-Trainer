@@ -49,8 +49,7 @@ public class GameModeManager : MonoBehaviour
         SessionManager.Instance.BeginSession();
         UIManager ui = FindObjectOfType<UIManager>();
         if (ui != null) ui.HideStartMenu();
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        CursorStateManager.GetOrCreate().EnterGameplayCursorMode();
     }
 
     private void Awake()

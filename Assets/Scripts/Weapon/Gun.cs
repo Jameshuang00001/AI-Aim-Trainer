@@ -73,6 +73,7 @@ public class Gun : MonoBehaviour
 
     private void Shoot()
     {
+        if (CursorStateManager.Instance == null || !CursorStateManager.Instance.GameplayInputEnabled) return;
         if (SessionManager.Instance == null || !SessionManager.Instance.CanShoot)
         {
             return;

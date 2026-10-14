@@ -6,11 +6,13 @@ using UnityEngine.EventSystems;
 /// Keep this component on an active manager, not on the hidden panel.
 /// If no panel is assigned, a simple legacy UI is created automatically.
 /// </summary>
+[DefaultExecutionOrder(-800)]
 public class SettingsMenuManager : MonoBehaviour
 {
     [SerializeField] private GameObject settingsPanel;
     [SerializeField] private Button continueButton;
     [SerializeField] private Button endSessionButton;
+    [SerializeField] private Button quitGameButton;
     [SerializeField] private Dropdown fpsLimitDropdown;
     [SerializeField] private Dropdown modeDropdown;
     [SerializeField] private Dropdown timeLimitDropdown;
@@ -24,12 +26,39 @@ public class SettingsMenuManager : MonoBehaviour
     private readonly int[] frameRates = { 30, 60, 90, 120, -1 };
     private readonly string[] modeNames = { "Static Targets", "Moving Targets", "Flick Targets", "Reaction Targets" };
     private Font font;
+    public bool IsSettingsOpen => settingsPanel != null && settingsPanel.activeSelf;
+
+    private void Update()
+    {
+        if (!Input.GetKeyDown(KeyCode.Escape)) return;
+        SessionManager session = SessionManager.Instance;
+        if (session == null) return;
+        if (session.IsSummaryOpen) { session.CloseSummary(); return; }
+        if (IsSettingsOpen) { ContinueSession(); return; }
+        if (!session.IsSessionActive) return; // Start menu: ignore Escape.
+        ToggleSettings();
+    }
 
     private void Start()
     {
         if (player == null) player = FindObjectOfType<PlayerController>();
         if (performanceSettings == null) performanceSettings = FindObjectOfType<PerformanceSettings>();
         if (settingsPanel == null) BuildDefaultPanel();
+        if (quitGameButton == null)
+        {
+            Transform existingQuit = settingsPanel.transform.Find("QuitGameButton");
+            if (existingQuit != null) quitGameButton = existingQuit.GetComponent<Button>();
+        }
+        if (quitGameButton == null)
+        {
+            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            quitGameButton = CreateButton("Quit Game", settingsPanel.transform,
+                new Vector2(0f, -290f), new Vector2(280f, 40f));
+            quitGameButton.gameObject.name = "QuitGameButton";
+        }
+        Text quitLabel = quitGameButton.GetComponentInChildren<Text>(true);
+        if (quitLabel != null) quitLabel.text = "Quit Game";
+        quitGameButton.onClick.AddListener(QuitGame);
         // Existing custom panels can assign their own dropdown; otherwise add one.
         if (timeLimitDropdown == null)
         {
@@ -70,10 +99,11 @@ public class SettingsMenuManager : MonoBehaviour
     {
         SessionManager session = SessionManager.Instance;
         if (session == null || !session.IsSessionActive) return;
-        if (session.IsPaused) ContinueSession();
+        if (session.IsSummaryOpen) return;
+        if (IsSettingsOpen) ContinueSession();
         else
         {
-            session.SetPaused(true);
+            CursorStateManager.GetOrCreate().EnterMenuCursorMode();
             settingsPanel.SetActive(true);
             settingsPanel.transform.SetAsLastSibling();
             RefreshControls();
@@ -83,7 +113,8 @@ public class SettingsMenuManager : MonoBehaviour
     public void ContinueSession()
     {
         HidePanel();
-        if (SessionManager.Instance != null) SessionManager.Instance.SetPaused(false);
+        CursorStateManager.GetOrCreate().EnterGameplayCursorMode();
+        Debug.Log("Closed SettingsPanel and relocked cursor");
         if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
     }
 
@@ -91,6 +122,18 @@ public class SettingsMenuManager : MonoBehaviour
     {
         HidePanel();
         if (SessionManager.Instance != null) SessionManager.Instance.EndSession();
+    }
+
+    public void QuitGame()
+    {
+        // Restore scaled time before stopping Play Mode or exiting the build.
+        if (SessionManager.Instance != null) SessionManager.Instance.SetPaused(false);
+        CursorStateManager.GetOrCreate().EnterMenuCursorMode();
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
     }
 
     public void HidePanel()

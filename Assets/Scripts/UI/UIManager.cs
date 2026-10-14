@@ -148,8 +148,7 @@ public class UIManager : MonoBehaviour
     public void ShowStartMenu()
     {
         if (startMenuPanel != null) startMenuPanel.SetActive(true);
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        CursorStateManager.GetOrCreate().EnterMenuCursorMode();
         RefreshMode();
     }
 
@@ -257,27 +256,12 @@ public class UIManager : MonoBehaviour
         SetText(sessionTimeText, sessionManager.UnlimitedTime && !sessionManager.IsSessionComplete
             ? "Time: Unlimited" : $"Time: {Mathf.CeilToInt(sessionManager.RemainingTime)}");
 
-        if (sessionManager.IsSessionComplete)
-        {
-            ShowSessionComplete();
-        }
-        else
-        {
-            SetSessionCompleteVisible(false);
-        }
+        if (!summaryShown) SetSessionCompleteVisible(false);
     }
 
     public void ShowSessionComplete()
     {
         ShowSummaryPanel();
-        if (sessionCompleteText == null)
-        {
-            return;
-        }
-
-        sessionCompleteText.text = "SESSION COMPLETE\nPress R to Restart";
-        // Keep the old message as a fallback when the summary has not been wired.
-        SetSessionCompleteVisible(summaryPanel == null || summaryText == null);
     }
 
     public void ShowSummaryPanel()
@@ -301,15 +285,18 @@ public class UIManager : MonoBehaviour
             default: modeName = "Static Targets"; break;
         }
 
-        // Copy the final values once, so the summary stays fixed until restart.
-        SetText(summaryText,
-            $"SESSION COMPLETE\nMode: {modeName}\n\n" +
-            $"Final Shots: {(stats != null ? stats.ShotsFired : 0)}\n" +
-            $"Final Hits: {(stats != null ? stats.Hits : 0)}\n" +
-            $"Final Misses: {(stats != null ? stats.Misses : 0)}\n" +
-            $"Final Accuracy: {(stats != null ? stats.AccuracyPercentage : 0f):F1}%\n" +
-            $"Final Avg Reaction: {(stats != null ? stats.AverageReactionTime : 0f):F3}s\n\n" +
-            "Press R to Restart");
+        // Snapshot current stats for this temporary overlay; nothing is reset.
+        string snapshot =
+            $"SESSION STATS\nMode: {modeName}\n\n" +
+            $"Shots: {(stats != null ? stats.ShotsFired : 0)}\n" +
+            $"Hits: {(stats != null ? stats.Hits : 0)}\n" +
+            $"Misses: {(stats != null ? stats.Misses : 0)}\n" +
+            $"Accuracy: {(stats != null ? stats.AccuracyPercentage : 0f):F1}%\n" +
+            $"Avg Reaction: {(stats != null ? stats.AverageReactionTime : 0f):F3}s\n\n" +
+            "Press ESC to close";
+        SetText(summaryText, snapshot);
+        SetText(sessionCompleteText, snapshot);
+        SetSessionCompleteVisible(summaryPanel == null || summaryText == null);
         if (summaryPanel != null) summaryPanel.SetActive(true);
         if (summaryText != null)
         {
@@ -321,6 +308,7 @@ public class UIManager : MonoBehaviour
     public void HideSummaryPanel()
     {
         summaryShown = false;
+        SetSessionCompleteVisible(false);
         if (summaryText != null) summaryText.enabled = false;
         if (summaryPanel != null) summaryPanel.SetActive(false);
     }

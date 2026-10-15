@@ -23,3 +23,10 @@
 Thumbs.db
 
 sysinfo.txt
+
+# Python environments, caches, and local credentials.
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*

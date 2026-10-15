@@ -74,9 +74,9 @@ public class SessionJsonLog
             shots[shots.Count - 1] = new TargetShotData { t_ms = timestamp, hit = false, target_id = targetId };
     }
 
-    public void Export(ScoreManager score)
+    public string Export(ScoreManager score)
     {
-        if (session == null || score == null) return;
+        if (session == null || score == null) return null;
         session.ended_at = DateTime.UtcNow.ToString("O");
         session.shots = score.ShotsFired;
         session.hits = score.Hits;
@@ -106,11 +106,13 @@ public class SessionJsonLog
             if (File.Exists(path)) File.Replace(temporaryPath, path, null);
             else File.Move(temporaryPath, path);
             Debug.Log("Session JSON saved: " + path);
+            return path;
         }
         catch (Exception exception)
         {
             // Export failure must never break the summary or gameplay flow.
             Debug.LogError("Could not save session JSON at " + path + ": " + exception.Message);
+            return null;
         }
     }
 }

@@ -104,9 +104,9 @@ public class ScoreManager : MonoBehaviour
         NotifyStatsChanged();
     }
 
-    public void ExportSessionJson()
+    public string ExportSessionJson()
     {
-        sessionLog.Export(this);
+        return sessionLog.Export(this);
     }
 
     private void UpdateAccuracy()

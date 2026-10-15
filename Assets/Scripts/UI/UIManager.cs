@@ -274,7 +274,11 @@ public class UIManager : MonoBehaviour
         ClearMissFeedback();
 
         ScoreManager stats = ScoreManager.Instance;
-        if (stats != null) stats.ExportSessionJson();
+        if (stats != null)
+        {
+            string exportedPath = stats.ExportSessionJson();
+            if (!string.IsNullOrEmpty(exportedPath)) CoachAppBridge.NotifySession(exportedPath);
+        }
         AimTrainingMode mode = GameModeManager.Instance != null
             ? GameModeManager.Instance.CurrentMode : AimTrainingMode.StaticTargets;
         string modeName;

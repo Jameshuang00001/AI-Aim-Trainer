@@ -9,6 +9,15 @@ from coach_app import nebius_client as coach
 
 
 class NebiusClientTests(unittest.TestCase):
+    def test_both_mode_prompts_require_english(self):
+        rule = ("Respond in English only. Do not switch languages. "
+                "All section headings, explanations, and training "
+                "recommendations must be written in natural English.")
+        for prompt in (coach.SYSTEM_PROMPT, coach.MODE_1_SYSTEM_PROMPT, coach.MODE_2_SYSTEM_PROMPT):
+            self.assertIn(rule, prompt)
+            for heading in ("Session Summary:", "Strengths:", "Weaknesses:", "Next Drill:"):
+                self.assertIn(heading, prompt)
+
     def test_missing_key_is_an_explicit_error(self):
         with patch.dict("os.environ", {}, clear=True):
             with self.assertRaisesRegex(coach.AnalysisError, "NEBIUS_API_KEY is not set"):

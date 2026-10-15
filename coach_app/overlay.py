@@ -3,6 +3,9 @@
 import tkinter as tk
 import queue
 import threading
+import os
+import subprocess
+import sys
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
@@ -15,12 +18,14 @@ else:
 
 
 class CoachWindow:
-    def __init__(self, root: tk.Tk, session_path: str | None = None) -> None:
+    def __init__(self, root: tk.Tk, session_path: str | None = None, commands=None) -> None:
         self.root = root
         self.session_path = session_path
         self.results = queue.Queue()
         self.busy = False
         self.closed = False
+        self.commands = commands
+        self.pending_path = None
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.title("Aim Trainer Coach")
         root.geometry("580x460")
@@ -82,6 +87,13 @@ class CoachWindow:
     def poll_results(self) -> None:
         if self.closed:
             return
+        if self.commands is not None:
+            while True:
+                try:
+                    self.pending_path = self.commands.get_nowait()
+                    self.show_window()
+                except queue.Empty:
+                    break
         try:
             path, report, error = self.results.get_nowait()
         except queue.Empty:
@@ -92,6 +104,9 @@ class CoachWindow:
             self.latest_button.configure(state="normal" if self.session_path else "disabled")
             self.status.set(("Analysis failed: " if error else "Nebius report ready: ") + str(path))
             self.show_report(error if error else report)
+        if not self.busy and self.pending_path is not None:
+            path, self.pending_path = self.pending_path, None
+            self.load(path)
         self.poll_id = self.root.after(100, self.poll_results)
 
     def show_report(self, report: str) -> None:
@@ -101,6 +116,19 @@ class CoachWindow:
         self.report.configure(state="disabled")
 
     def close(self) -> None:
-        self.closed = True
-        self.root.after_cancel(self.poll_id)
-        self.root.destroy()
+        # Keep IPC and in-flight analysis alive for the next Unity report.
+        self.root.withdraw()
+
+    def show_window(self) -> None:
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+        if sys.platform == "darwin":
+            # Foreground this Coach process only, never manipulate the Unity window.
+            script = ('tell application "System Events" to set frontmost of '
+                      f'first application process whose unix id is {os.getpid()} to true')
+            try:
+                subprocess.Popen(["/usr/bin/osascript", "-e", script],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except OSError:
+                pass  # Tk lift/focus still applies if macOS denies activation.

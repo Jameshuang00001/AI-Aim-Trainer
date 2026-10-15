@@ -65,7 +65,7 @@ class CoachWindow:
         self.busy = True
         self.open_button.configure(state="disabled")
         self.latest_button.configure(state="disabled")
-        self.status.set("Analyzing: " + str(path))
+        self.status.set("Requesting Nebius analysis: " + str(path))
         self.show_report("Analyzing session...")
         # Workers never touch Tk widgets; the main thread polls a result queue.
         threading.Thread(target=self.analyze_worker, args=(session, path), daemon=True).start()
@@ -75,8 +75,9 @@ class CoachWindow:
             self.results.put((path, analyze_session(session), None))
         except AnalysisError as error:
             self.results.put((path, None, str(error)))
-        except Exception:
-            self.results.put((path, None, "Analysis failed unexpectedly. Please try again."))
+        except Exception as error:
+            print(f"[coach] Worker failure: {type(error).__name__} (details suppressed for privacy)", flush=True)
+            self.results.put((path, None, f"Analysis failed ({type(error).__name__}). See Terminal diagnostics."))
 
     def poll_results(self) -> None:
         if self.closed:
@@ -89,7 +90,7 @@ class CoachWindow:
             self.busy = False
             self.open_button.configure(state="normal")
             self.latest_button.configure(state="normal" if self.session_path else "disabled")
-            self.status.set(str(path))
+            self.status.set(("Analysis failed: " if error else "Nebius report ready: ") + str(path))
             self.show_report(error if error else report)
         self.poll_id = self.root.after(100, self.poll_results)
 

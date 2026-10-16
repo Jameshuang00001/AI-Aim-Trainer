@@ -19,9 +19,25 @@ class NebiusClientTests(unittest.TestCase):
                 self.assertIn(heading, prompt)
 
     def test_missing_key_is_an_explicit_error(self):
-        with patch.dict("os.environ", {}, clear=True):
+        with patch.dict("os.environ", {}, clear=True), patch("coach_app.nebius_client.get_api_key", return_value=None):
             with self.assertRaisesRegex(coach.AnalysisError, "NEBIUS_API_KEY is not set"):
                 coach.analyze_session({"shots": 2})
+
+    def test_keychain_key_reaches_client_without_environment(self):
+        factory = MagicMock()
+        client = factory.return_value.__enter__.return_value
+        client.models.list.return_value = [SimpleNamespace(id=coach.MODEL_PREFERENCES[0])]
+        client.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(
+            finish_reason="stop", message=SimpleNamespace(content=(
+                "Session Summary:\n- 2 shots.\nStrengths:\n- One hit.\n"
+                "Weaknesses:\n- Small sample.\nNext Drill:\n- Take 20 shots.")))])
+        with patch.dict("os.environ", {}, clear=True), patch("coach_app.credentials.sys.platform", "darwin"):
+            with patch("coach_app.credentials.macos_backend") as backend:
+                backend.return_value.get_password.return_value = "mock-keychain-value"
+                with patch.dict("sys.modules", {"openai": SimpleNamespace(OpenAI=factory)}):
+                    report = coach.analyze_session({"shots": 2})
+        self.assertEqual(factory.call_args.kwargs["api_key"], "mock-keychain-value")
+        self.assertNotIn("mock-keychain-value", report)
 
     def test_demo_large_sample_has_no_small_sample_warning(self):
         self.assertNotIn("Small sample size", coach.fake_report({"shots": 10}))

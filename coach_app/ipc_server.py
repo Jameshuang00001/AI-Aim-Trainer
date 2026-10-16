@@ -2,11 +2,15 @@
 
 import hmac
 import json
-import os
 import queue
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+if __package__:
+    from .credentials import credential_status
+else:
+    from credentials import credential_status
 
 
 class CoachServer(ThreadingHTTPServer):
@@ -38,8 +42,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/health":
             self.reply(404, {"error": "Unknown command"})
             return
+        available, error = credential_status()
         self.reply(200, {"app": "aim-trainer-coach", "protocol": 1,
-                         "api_key_available": bool(os.environ.get("NEBIUS_API_KEY", "").strip())})
+                         "api_key_available": available, "credential_error": error})
 
     def do_POST(self) -> None:
         self.connection.settimeout(3)

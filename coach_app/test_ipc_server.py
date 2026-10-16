@@ -13,6 +13,9 @@ from coach_app.ipc_server import CoachServer
 
 class IPCTests(unittest.TestCase):
     def setUp(self):
+        self.keychain = patch("coach_app.credentials.macos_backend")
+        self.keychain.start().return_value.get_password.return_value = None
+        self.addCleanup(self.keychain.stop)
         self.server = CoachServer(0, "test-token")
         self.server.start()
         self.url = f"http://127.0.0.1:{self.server.server_port}"

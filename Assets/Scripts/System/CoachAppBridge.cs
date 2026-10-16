@@ -83,7 +83,7 @@ public class CoachAppBridge : MonoBehaviour
             {
                 Debug.Log("Coach IPC ready (" + (ownedProcess != null && !ownedProcess.HasExited ? "owned process" : "existing process") + ").");
                 if (!health.api_key_available)
-                    Debug.LogWarning("Coach: NEBIUS_API_KEY is not set. JSON/IPC still work, but AI analysis needs the key in the Coach launch environment.");
+                    Debug.LogWarning("Coach: no Nebius key is available from the environment or macOS Keychain. Run .venv/bin/python -m coach_app.credentials setup, or unlock/allow Keychain access. JSON/IPC still work.");
             }
         }
     }
@@ -165,8 +165,8 @@ public class CoachAppBridge : MonoBehaviour
             info.EnvironmentVariables["COACH_START_HIDDEN"] = "1";
             info.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
             // API credentials are inherited from the environment, never stored here.
-            if (string.IsNullOrWhiteSpace(info.EnvironmentVariables["NEBIUS_API_KEY"]))
-                Debug.LogWarning("Launching Coach without NEBIUS_API_KEY. Set it in Unity's inherited environment and restart the Editor/game to enable AI analysis. The key value is never logged.");
+            // Python resolves Keychain credentials when Unity Hub has no API key
+            // in its environment. Unity never reads or receives that secret.
             ownedProcess = Process.Start(info);
             Debug.Log("Started owned Coach using project .venv/bin/python; waiting for IPC readiness.");
             // Drain both pipes without logging private session data or credentials.

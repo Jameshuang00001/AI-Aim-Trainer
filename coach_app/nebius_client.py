@@ -1,12 +1,13 @@
 """Nebius Token Factory analysis; credentials come only from the environment."""
 
 import json
-import os
 from typing import Any
 
 if __package__:
+    from .credentials import CredentialError, MISSING_KEY_MESSAGE, get_api_key
     from .report_format import complete_report, prepare_session, parse_sections, SECTIONS
 else:
+    from credentials import CredentialError, MISSING_KEY_MESSAGE, get_api_key
     from report_format import complete_report, prepare_session, parse_sections, SECTIONS
 
 BASE_URL = "https://api.tokenfactory.nebius.com/v1/"
@@ -15,7 +16,6 @@ MODEL_PREFERENCES = (
     "nvidia/Nemotron-3_5-Lightning",
     "nvidia/nemotron-3-super-120b-a12b",
 )
-MISSING_KEY_MESSAGE = "NEBIUS_API_KEY is not set. Please set it before running AI analysis."
 SYSTEM_PROMPT = (
     "Respond in English only. Do not switch languages. "
     "All section headings, explanations, and training "
@@ -59,9 +59,13 @@ def check_model_availability(client: Any) -> str:
 
 
 def analyze_session(session_json: dict[str, Any]) -> str:
-    api_key = os.environ.get("NEBIUS_API_KEY", "").strip()
+    try:
+        api_key = get_api_key()
+    except CredentialError as error:
+        print("[coach] Credential lookup failed; check Keychain access", flush=True)
+        raise AnalysisError(str(error)) from None
     if not api_key:
-        print("[coach] No API call: NEBIUS_API_KEY is missing", flush=True)
+        print("[coach] No API call: no environment or Keychain credential available", flush=True)
         raise AnalysisError(MISSING_KEY_MESSAGE)
     try:
         from openai import OpenAI

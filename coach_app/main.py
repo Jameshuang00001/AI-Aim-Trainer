@@ -29,8 +29,7 @@ def main() -> None:
     try:
         root = tk.Tk()
         CoachWindow(root, args.session_path, server.commands)
-        if os.environ.get("COACH_START_HIDDEN") == "1":
-            root.withdraw()
+        # Unity's background launch now shows the collapsed companion, not a hidden window.
         server.start()
         root.mainloop()
     finally:

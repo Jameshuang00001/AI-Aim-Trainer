@@ -33,6 +33,7 @@ public class CoachAppBridge : MonoBehaviour
         public string app = "";
         public int protocol = 0;
         public bool api_key_available = false;
+        public bool api_key_checked = false;
         public string launch_id = "";
         public int process_id;
     }
@@ -66,7 +67,7 @@ public class CoachAppBridge : MonoBehaviour
         };
     }
 
-    [Serializable] private class AssistCommand { public bool enabled; public int sequence; }
+    [Serializable] private class AssistCommand { public bool enabled; public int sequence; public string mode; }
     private IEnumerator PollAssist()
     {
         while (!shuttingDown)
@@ -91,7 +92,7 @@ public class CoachAppBridge : MonoBehaviour
                             try { command = JsonUtility.FromJson<AssistCommand>(body.Result); }
                             catch (ArgumentException) { }
                             if (command != null && AssistStatePublisher.Instance != null)
-                                AssistStatePublisher.Instance.Command(command.enabled, command.sequence);
+                                AssistStatePublisher.Instance.Command(command.enabled, command.sequence, command.mode);
                         }
                     }
                 }
@@ -104,13 +105,25 @@ public class CoachAppBridge : MonoBehaviour
     private IEnumerator Start()
     {
         yield return Initialize();
+        if (connected) yield return ShowCoach();
         StartCoroutine(PollAssist());
+    }
+
+    private IEnumerator ShowCoach()
+    {
+        using (var request = new HttpRequestMessage(HttpMethod.Post, BaseUrl + "/show"))
+        {
+            request.Headers.Add("X-Coach-Token", token);
+            var pending = http.SendAsync(request);
+            while (!pending.IsCompleted) yield return null;
+            if (!pending.IsFaulted && !pending.IsCanceled) pending.Result.Dispose();
+        }
     }
 
     private IEnumerator CheckHealth()
     {
         connected = false;
-        var pending = http.GetAsync(BaseUrl + "/health");
+        var pending = http.GetAsync(BaseUrl + "/health?startup=1");
         while (!pending.IsCompleted) yield return null;
         if (pending.IsFaulted || pending.IsCanceled) yield break;
         using (HttpResponseMessage response = pending.Result)
@@ -137,7 +150,7 @@ public class CoachAppBridge : MonoBehaviour
             if (connected)
             {
                 Debug.Log("Coach IPC ready (" + (ownedProcess != null && !ownedProcess.HasExited ? "owned process" : "existing process") + ").");
-                if (!health.api_key_available)
+                if (health.api_key_checked && !health.api_key_available)
                     Debug.LogWarning("Coach: no Nebius key is available from the environment or macOS Keychain. Run .venv/bin/python -m coach_app.credentials setup, or unlock/allow Keychain access. JSON/IPC still work.");
             }
         }
@@ -195,6 +208,13 @@ public class CoachAppBridge : MonoBehaviour
         if (string.IsNullOrWhiteSpace(root)) root = Application.isEditor
             ? Path.GetDirectoryName(Application.dataPath)
             : Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
+        string hint = Path.Combine(Application.streamingAssetsPath, "coach-root.txt");
+        if (!Application.isEditor && string.IsNullOrWhiteSpace(coachProjectDirectory) &&
+            string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("COACH_APP_ROOT")) && File.Exists(hint))
+        {
+            string candidate = File.ReadAllText(hint).Trim();
+            if (File.Exists(Path.Combine(candidate, "coach_app", "main.py"))) root = candidate;
+        }
         // Local builds can sit below build/Mode2; find the source Coach above them.
         if (string.IsNullOrWhiteSpace(coachProjectDirectory) &&
             string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("COACH_APP_ROOT")))
@@ -244,7 +264,7 @@ public class CoachAppBridge : MonoBehaviour
             info.EnvironmentVariables["COACH_IPC_PORT"] = ipcPort.ToString();
             info.EnvironmentVariables["COACH_LAUNCH_ID"] = ownedLaunchId;
             info.EnvironmentVariables["COACH_APP_ROOT"] = root;
-            info.EnvironmentVariables["COACH_START_HIDDEN"] = "1";
+            info.EnvironmentVariables["COACH_START_HIDDEN"] = "0";
             info.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
             // API credentials are inherited from the environment, never stored here.
             // Python resolves Keychain credentials when Unity Hub has no API key

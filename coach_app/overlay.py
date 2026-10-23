@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
 from coach_app.nebius_client import analyze_session
+from coach_app.macos_window import FloatingWindowPolicy
 from coach_app.session_reader import read_session, select_session_file, find_latest_session
 
 class CoachWindow:
@@ -13,24 +14,40 @@ class CoachWindow:
         self.root, self.session_path, self.commands, self.server = root, session_path, commands, server
         self.closed = self.busy = False
         self.results = queue.Queue()
-        root.title("AI Aim Trainer Coach")
-        root.geometry("480x600")
-        root.protocol("WM_DELETE_WINDOW", self.close)
+        root.title("AI Coach")
+        root.overrideredirect(True)
+        root.attributes("-topmost", True)
+        root.geometry(f"64x64+{max(0, root.winfo_screenwidth()-100)}+120")
+        self.panel = tk.Toplevel(root)
+        self.panel.title("AI Aim Trainer Coach")
+        self.panel.geometry("480x600")
+        self.panel.attributes("-topmost", True)
+        self.panel.protocol("WM_DELETE_WINDOW", self.close)
+        self.panel.withdraw()
+        self.floating_policies = [FloatingWindowPolicy(root), FloatingWindowPolicy(self.panel)]
+        self.bubble = tk.Label(root, text="AI", bg="#1a2633", fg="#58d6ed", font=("Helvetica", 20, "bold"), cursor="hand2")
+        self.bubble.pack(fill="both", expand=True)
+        self.bubble.bind("<ButtonPress-1>", self.drag_start)
+        self.bubble.bind("<B1-Motion>", self.drag_move)
+        self.bubble.bind("<ButtonRelease-1>", self.drag_end)
+        root.after_idle(self.show_companion)
         self.mode = tk.StringVar(value="Mode 1 Coach")
-        ttk.OptionMenu(root, self.mode, self.mode.get(), "Mode 1 Coach", "Mode 2 Unity Assist", command=self.change_mode).pack(fill="x", padx=12, pady=8)
-        row = ttk.Frame(root); row.pack(fill="x", padx=12)
+        ttk.OptionMenu(self.panel, self.mode, self.mode.get(), "Mode 1 Coach", "Mode 2 Unity Assist", command=self.change_mode).pack(fill="x", padx=12, pady=8)
+        row = ttk.Frame(self.panel); row.pack(fill="x", padx=12)
         ttk.Button(row, text="Open session", command=self.open_file).pack(side="left")
         ttk.Button(row, text="Latest session", command=self.load_latest).pack(side="left")
-        self.controls = ttk.Frame(root)
-        ttk.Label(self.controls, text="Unity data · Hold RMB · F8 / ESC stops · No auto fire").pack()
+        self.controls = ttk.Frame(self.panel)
+        self.assist_kind = tk.StringVar(value="Hold RMB")
+        ttk.OptionMenu(self.controls, self.assist_kind, self.assist_kind.get(), "Hold RMB", "Single-click correction", command=lambda _: self.stop_mode2()).pack(fill="x")
+        ttk.Label(self.controls, text="F8 / ESC stops · Manual firing only").pack()
         ttk.Button(self.controls, text="Start Assist", command=self.start_assist).pack(side="left")
         ttk.Button(self.controls, text="Stop", command=self.stop_mode2).pack(side="left")
         self.status = tk.StringVar(value="Ready")
-        ttk.Label(root, textvariable=self.status, wraplength=450).pack(fill="x", padx=12, pady=8)
-        self.report = tk.Text(root, wrap="word", state="disabled")
+        ttk.Label(self.panel, textvariable=self.status, wraplength=450).pack(fill="x", padx=12, pady=8)
+        self.report = tk.Text(self.panel, wrap="word", state="disabled")
         self.report.pack(fill="both", expand=True, padx=12, pady=8)
-        root.bind("<Escape>", lambda e: self.stop_mode2())
-        root.bind("<F8>", lambda e: self.stop_mode2())
+        self.panel.bind("<Escape>", lambda e: self.stop_mode2())
+        self.panel.bind("<F8>", lambda e: self.stop_mode2())
         self.poll_id = root.after(100, self.poll_results)
     def change_mode(self, value):
         self.stop_mode2()
@@ -38,6 +55,7 @@ class CoachWindow:
         else: self.controls.pack_forget()
     def start_assist(self):
         if self.server:
+            self.server.assist_mode = "shot" if self.assist_kind.get() == "Single-click correction" else "hold"
             self.server.assist_sequence += 1
             self.server.assist_enabled = True
     def stop_mode2(self):
@@ -60,7 +78,7 @@ class CoachWindow:
         except (OSError, ValueError) as error: self.show_report(str(error)); return
         self.session_path = str(Path(path).parent)
         self.busy = True
-        self.root.deiconify()
+        self.show_window()
         self.status.set("Analyzing session...")
         def worker():
             try: result = analyze_session(session)
@@ -69,6 +87,13 @@ class CoachWindow:
         threading.Thread(target=worker, daemon=True).start()
     def poll_results(self):
         if self.closed: return
+        if self.server:
+            native = self.floating_policies[0].window
+            self.server.companion_visible = bool(self.root.winfo_viewable() and (native is None or native.isVisible()))
+            self.server.companion_floating = bool(native is not None and native.level() >= self.floating_policies[0].appkit.NSFloatingWindowLevel)
+        if self.server and self.server.show_requested.is_set():
+            self.server.show_requested.clear()
+            self.show_companion()
         if self.server and self.mode.get() == "Mode 2 Unity Assist":
             fresh = time.monotonic() - self.server.assist_seen < 1
             self.status.set(self.server.assist_status if fresh else "Unity disconnected")
@@ -81,7 +106,23 @@ class CoachWindow:
             try: self.load(self.commands.get_nowait())
             except queue.Empty: pass
         self.poll_id = self.root.after(100, self.poll_results)
+    def show_companion(self):
+        self.root.deiconify(); self.root.lift()
+        self.floating_policies[0].schedule()
+    def show_window(self):
+        self.panel.deiconify(); self.panel.lift()
+        self.floating_policies[1].schedule()
+    def drag_start(self, event):
+        self.drag_origin = (event.x_root, event.y_root, self.root.winfo_x(), self.root.winfo_y())
+        self.dragged = False
+    def drag_move(self, event):
+        x, y, left, top = self.drag_origin
+        dx, dy = event.x_root-x, event.y_root-y
+        if abs(dx)+abs(dy) > 5: self.dragged = True
+        if self.dragged: self.root.geometry(f"+{max(0,left+dx)}+{max(0,top+dy)}")
+    def drag_end(self, event):
+        if not self.dragged: self.show_window()
     def close(self):
-        self.stop_mode2(); self.root.iconify()
+        self.stop_mode2(); self.panel.withdraw(); self.show_companion()
     def shutdown(self):
         self.stop_mode2(); self.closed = True

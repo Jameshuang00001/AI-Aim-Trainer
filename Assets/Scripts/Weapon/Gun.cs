@@ -65,7 +65,9 @@ public class Gun : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetMouseButton(0) && Time.time >= nextFireTime)
+        var assist = AssistStatePublisher.Instance;
+        bool singleShot = assist != null && assist.Armed && assist.ShotCorrection;
+        if ((singleShot ? Input.GetMouseButtonDown(0) : Input.GetMouseButton(0)) && Time.time >= nextFireTime)
         {
             Shoot();
         }
@@ -99,6 +101,8 @@ public class Gun : MonoBehaviour
         }
 
         Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        var assist = AssistStatePublisher.Instance;
+        if (assist != null) ray = assist.CorrectShot(playerCamera, ray, range);
         if (drawAimDebugRay)
         {
             Debug.DrawRay(ray.origin, ray.direction * range, Color.red, debugRayDuration);

@@ -24,6 +24,10 @@ class CoachServer(ThreadingHTTPServer):
         self.commands = queue.Queue()
         self.assist_enabled = False
         self.assist_sequence = 0
+        self.assist_mode = "hold"
+        self.show_requested = threading.Event()
+        self.companion_visible = False
+        self.companion_floating = False
         self.assist_status = "Unity disconnected"
         self.assist_seen = 0.0
         self.token = token
@@ -55,15 +59,18 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.server.assist_status = parse_qs(urlparse(self.path).query).get("status", ["OFF"])[0][:64]
             self.server.assist_seen = time.monotonic()
-            self.reply(200, {"enabled": self.server.assist_enabled, "sequence": self.server.assist_sequence})
+            self.reply(200, {"enabled": self.server.assist_enabled, "sequence": self.server.assist_sequence, "mode": self.server.assist_mode})
             return
-        if self.path != "/health":
+        if urlparse(self.path).path != "/health":
             self.reply(404, {"error": "Unknown command"})
             return
-        available, error = credential_status()
+        startup = parse_qs(urlparse(self.path).query).get("startup") == ["1"]
+        available, error = (False, "") if startup else credential_status()
         self.reply(200, {"app": "aim-trainer-coach", "protocol": 1,
                          "process_id": os.getpid(), "launch_id": self.server.launch_id,
-                         "api_key_available": available, "credential_error": error})
+                         "companion_visible": self.server.companion_visible,
+                         "companion_floating": self.server.companion_floating,
+                         "api_key_checked": not startup, "api_key_available": available, "credential_error": error})
 
     def do_POST(self) -> None:
         self.connection.settimeout(3)
@@ -74,6 +81,10 @@ class Handler(BaseHTTPRequestHandler):
         token = self.headers.get("X-Coach-Token", "")
         if not hmac.compare_digest(token.encode(), self.server.token.encode()):
             self.reply(403, {"error": "Coach IPC token mismatch"})
+            return
+        if self.path == "/show":
+            self.server.show_requested.set()
+            self.reply(200, {"shown": True})
             return
         if self.path == "/shutdown":
             # Only a Unity-owned launch may accept its authenticated shutdown.

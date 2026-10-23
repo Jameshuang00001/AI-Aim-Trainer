@@ -35,11 +35,25 @@ class IPCTests(unittest.TestCase):
         return urlopen(Request(self.url + "/analyze", method="POST", headers=headers,
                                data=json.dumps({"path": str(path or self.path)}).encode()), timeout=3)
 
+    def test_startup_health_does_not_read_credentials(self):
+        with patch("coach_app.ipc_server.credential_status") as credentials:
+            with urlopen(self.url + "/health?startup=1", timeout=3) as response:
+                self.assertFalse(json.load(response)["api_key_checked"])
+            credentials.assert_not_called()
+
+    def test_show_companion_is_authenticated(self):
+        with self.assertRaises(HTTPError):
+            urlopen(Request(self.url + "/show", method="POST", data=b""), timeout=3)
+        self.assertFalse(self.server.show_requested.is_set())
+        with urlopen(Request(self.url + "/show", method="POST", data=b"", headers={"X-Coach-Token": "test-token"}), timeout=3):
+            pass
+        self.assertTrue(self.server.show_requested.is_set())
+
     def test_assist_control_and_authentication(self):
         self.server.assist_enabled = True
         self.server.assist_sequence = 7
         with urlopen(Request(self.url + "/assist?status=ASSISTING", headers={"X-Coach-Token": "test-token"}), timeout=3) as response:
-            self.assertEqual(json.load(response), {"enabled": True, "sequence": 7})
+            self.assertEqual(json.load(response), {"enabled": True, "sequence": 7, "mode": "hold"})
         self.assertEqual(self.server.assist_status, "ASSISTING")
         for headers in ({}, {"X-Coach-Token": "wrong"}, {"X-Coach-Token": "test-token", "Origin": "https://example.com"}):
             with self.assertRaises(HTTPError) as error:

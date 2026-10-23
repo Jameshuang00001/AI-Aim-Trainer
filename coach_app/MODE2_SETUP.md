@@ -1,7 +1,10 @@
-Mode 2 uses Unity Head HitZone colliders and target IsHittable state. No detection, recording, synthetic mouse events or automatic shooting.
+Game startup shows a draggable AI floating companion. Click AI to open Coach. All Mode 2 Start/Stop and submode selection are in Coach; no gameplay overlay button.
 
-Start a game session, enable Mode 2 via the Unity menu button or Coach Mode 2 / Start Assist, return focus to Unity, then hold RMB. Nearest means world distance among visible, unoccluded, hittable heads inside the 25 degree cone. Release RMB stops correction that frame. F8/ESC or focus loss latches OFF; press Start again to rearm. Pauses/menus/session end block corrections. Stop in Unity is immediate; Coach Stop arrives on the next IPC poll (normally 100 ms); connection loss expires the remote lease in 600 ms. Sensitivity and training modes retain their original controls. Assist tuning is on the Player AssistStatePublisher component.
+Mode 2 / Hold RMB: return focus to Unity and hold RMB for bounded, smooth camera assistance.
+Mode 2 / Single-click correction: explicitly Start, then manually click left mouse once per shot. Only that shot ray is corrected toward the nearest visible valid head in the configured cone before the original hit test. The camera does not teleport. Holding left mouse does not repeat in this submode; no automatic firing is added. If no valid head exists the original shot ray is used.
 
-Legacy visual tools/data are quarantined under legacy_mode2, outside runtime imports and Unity Assets; ignored captures remain preserved there. Do not run legacy tools. Credentials and Keychain are unchanged.
+Both modes retain session, focus, cursor, occlusion, hit-state and emergency-stop gates. Switching mode stops assistance and requires Start. F8/ESC and focus loss latch OFF. Coach Stop arrives on the next IPC poll, normally 100ms; remote lease expires after 600ms without updates. A mode selected after focus has already left Unity can be armed in Coach and becomes eligible when Unity regains focus.
 
-Rollback: git switch to a branch at 9d3fbc2. Quarantined ignored captures are not part of Git; retain legacy_mode2 when rolling back.
+The companion uses native AppKit floating/all-Spaces window behavior, with no Quartz, screen capture or Accessibility dependency. Startup health never reads credentials; only the existing report functionality needs the Nebius credential.
+
+Local builds embed the source project location as a non-secret StreamingAssets hint. Moving this build to another machine requires providing Coach and COACH_APP_ROOT. Old visual tools remain quarantined in legacy_mode2. Rollback checkpoint before this revision: 3d54f71.

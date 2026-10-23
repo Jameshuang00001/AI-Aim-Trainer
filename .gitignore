@@ -49,3 +49,10 @@ datasets/xbot_head/annotation_backups/
 datasets/xbot_head/.annotation-export-*/
 datasets/xbot_head/split_manifest.json
 datasets/xbot_head/validation/
+
+# Quarantined local visual assets remain on disk, outside active code.
+legacy_mode2/datasets/
+legacy_mode2/runs/
+legacy_mode2/yolo_dev/.cache/
+legacy_mode2/yolo_dev/capture_region*.json
+legacy_mode2/*.pt

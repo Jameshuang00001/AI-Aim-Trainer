@@ -27,8 +27,6 @@ def main() -> None:
     parser.add_argument("--ipc-token")
     parser.add_argument("--launch-id")
     parser.add_argument("--project-root")
-    parser.add_argument("--diagnose-accessibility", action="store_true")
-    parser.add_argument("--packaging-smoke-test", action="store_true")
     args = parser.parse_args()
     for name, value in (("COACH_IPC_PORT", args.ipc_port), ("COACH_IPC_TOKEN", args.ipc_token),
                         ("COACH_LAUNCH_ID", args.launch_id), ("COACH_APP_ROOT", args.project_root)):
@@ -39,16 +37,6 @@ def main() -> None:
         directory.mkdir(parents=True, exist_ok=True)
         stream = (directory / "coach-app.log").open("a", buffering=1, encoding="utf-8")
         sys.stdout = sys.stderr = stream
-    if args.diagnose_accessibility or args.packaging_smoke_test:
-        from coach_app.diagnose_accessibility import diagnose, save_report
-        report = diagnose()
-        save_report(report)
-        if args.packaging_smoke_test:
-            from coach_app.packaging_smoke import smoke_test
-            report["smoke_test"] = smoke_test()
-        path = save_report(report)
-        print(f"Packaged Coach diagnostic: {path}", flush=True)
-        return
     # Bind before creating a window: a second launcher cannot create a duplicate UI.
     try:
         server = CoachServer(int(os.environ.get("COACH_IPC_PORT", "8765")),
@@ -59,7 +47,7 @@ def main() -> None:
     app = None
     try:
         root = tk.Tk()
-        app = CoachWindow(root, args.session_path, server.commands)
+        app = CoachWindow(root, args.session_path, server.commands, server=server)
         # Unity's background launch now shows the collapsed companion, not a hidden window.
         server.start()
         def check_shutdown():

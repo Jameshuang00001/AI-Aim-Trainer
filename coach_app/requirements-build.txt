@@ -1,2 +1,2 @@
-# Install in the existing .venv alongside Coach and requirements-yolo.txt.
+# Install alongside coach_app/requirements.txt.
 pyinstaller==6.22.3

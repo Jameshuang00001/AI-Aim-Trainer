@@ -44,6 +44,7 @@ public class PlayerController : MonoBehaviour
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+        if (GetComponent<AssistStatePublisher>() == null) gameObject.AddComponent<AssistStatePublisher>();
         // Existing player scenes get the safety net without needing Inspector rewiring.
         if (GetComponent<PlayerBoundsReset>() == null) gameObject.AddComponent<PlayerBoundsReset>();
 
@@ -65,6 +66,7 @@ public class PlayerController : MonoBehaviour
         }
         HandleMouseLook();
         HandleMovement();
+        GetComponent<AssistStatePublisher>().ApplyAssist(this);
     }
 
     private void HandleMouseLook()
@@ -83,6 +85,13 @@ public class PlayerController : MonoBehaviour
         {
             playerCamera.transform.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
         }
+    }
+
+    public void ApplyAssistRotation(Vector2 degrees)
+    {
+        transform.Rotate(Vector3.up * degrees.x);
+        cameraPitch = Mathf.Clamp(cameraPitch + degrees.y, -verticalLookLimit, verticalLookLimit);
+        playerCamera.transform.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
     }
 
     public void ResetMovementVelocity()

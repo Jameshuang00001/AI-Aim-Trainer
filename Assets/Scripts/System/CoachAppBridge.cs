@@ -66,9 +66,45 @@ public class CoachAppBridge : MonoBehaviour
         };
     }
 
+    [Serializable] private class AssistCommand { public bool enabled; public int sequence; }
+    private IEnumerator PollAssist()
+    {
+        while (!shuttingDown)
+        {
+            var assist = AssistStatePublisher.Instance;
+            string status = assist == null ? "OFF" : assist.Status;
+            var request = new HttpRequestMessage(HttpMethod.Get, BaseUrl + "/assist?status=" + Uri.EscapeDataString(status));
+            request.Headers.Add("X-Coach-Token", token);
+            var pending = http.SendAsync(request);
+            while (!pending.IsCompleted && !shuttingDown) yield return null;
+            if (pending.IsCompleted && !pending.IsFaulted && !pending.IsCanceled)
+            {
+                using (var response = pending.Result)
+                {
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var body = response.Content.ReadAsStringAsync();
+                        while (!body.IsCompleted) yield return null;
+                        if (!body.IsFaulted && !body.IsCanceled)
+                        {
+                            AssistCommand command = null;
+                            try { command = JsonUtility.FromJson<AssistCommand>(body.Result); }
+                            catch (ArgumentException) { }
+                            if (command != null && AssistStatePublisher.Instance != null)
+                                AssistStatePublisher.Instance.Command(command.enabled, command.sequence);
+                        }
+                    }
+                }
+            }
+            request.Dispose();
+            yield return new WaitForSecondsRealtime(0.1f);
+        }
+    }
+
     private IEnumerator Start()
     {
         yield return Initialize();
+        StartCoroutine(PollAssist());
     }
 
     private IEnumerator CheckHealth()
@@ -159,6 +195,15 @@ public class CoachAppBridge : MonoBehaviour
         if (string.IsNullOrWhiteSpace(root)) root = Application.isEditor
             ? Path.GetDirectoryName(Application.dataPath)
             : Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
+        // Local builds can sit below build/Mode2; find the source Coach above them.
+        if (string.IsNullOrWhiteSpace(coachProjectDirectory) &&
+            string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("COACH_APP_ROOT")))
+        {
+            var candidate = new DirectoryInfo(root);
+            for (int depth = 0; candidate != null && depth < 5; depth++, candidate = candidate.Parent)
+                if (File.Exists(Path.Combine(candidate.FullName, "coach_app", "main.py")))
+                { root = candidate.FullName; break; }
+        }
         string python = Path.Combine(root, ".venv", "bin", "python");
         string main = Path.Combine(root, "coach_app", "main.py");
         string appPath = packagedCoachPath;
@@ -168,7 +213,7 @@ public class CoachAppBridge : MonoBehaviour
             appPath = Path.Combine(root, "dist", "Coach.app");
             if (!Directory.Exists(appPath)) appPath = "/Applications/Coach.app";
         }
-        bool useApp = macOS && !string.IsNullOrWhiteSpace(appPath) &&
+        bool useApp = !File.Exists(main) && macOS && !string.IsNullOrWhiteSpace(appPath) &&
             File.Exists(Path.Combine(appPath, "Contents", "MacOS", "Coach"));
         if (!useApp && (!File.Exists(python) || !File.Exists(main)))
         {

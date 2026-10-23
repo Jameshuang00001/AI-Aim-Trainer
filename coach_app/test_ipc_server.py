@@ -35,6 +35,17 @@ class IPCTests(unittest.TestCase):
         return urlopen(Request(self.url + "/analyze", method="POST", headers=headers,
                                data=json.dumps({"path": str(path or self.path)}).encode()), timeout=3)
 
+    def test_assist_control_and_authentication(self):
+        self.server.assist_enabled = True
+        self.server.assist_sequence = 7
+        with urlopen(Request(self.url + "/assist?status=ASSISTING", headers={"X-Coach-Token": "test-token"}), timeout=3) as response:
+            self.assertEqual(json.load(response), {"enabled": True, "sequence": 7})
+        self.assertEqual(self.server.assist_status, "ASSISTING")
+        for headers in ({}, {"X-Coach-Token": "wrong"}, {"X-Coach-Token": "test-token", "Origin": "https://example.com"}):
+            with self.assertRaises(HTTPError) as error:
+                urlopen(Request(self.url + "/assist", headers=headers), timeout=3)
+            self.assertEqual(error.exception.code, 403)
+
     def test_health_and_delivery(self):
         with urlopen(self.url + "/health", timeout=3) as response:
             self.assertEqual(json.load(response)["app"], "aim-trainer-coach")

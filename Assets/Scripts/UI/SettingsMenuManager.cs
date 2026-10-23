@@ -27,6 +27,7 @@ public class SettingsMenuManager : MonoBehaviour
     private readonly string[] modeNames = { "Static Targets", "Moving Targets", "Flick Targets", "Reaction Targets" };
     private Font font;
     public bool IsSettingsOpen => settingsPanel != null && settingsPanel.activeSelf;
+    public bool IsSettingsPanelVisible => settingsPanel != null && settingsPanel.activeInHierarchy;
 
     private void Update()
     {

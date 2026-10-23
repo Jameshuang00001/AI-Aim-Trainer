@@ -2,6 +2,10 @@
 
 ## Standalone Setup
 
+The preferred macOS launcher now uses a packaged Coach.app through Launch Services
+when available; see [MACOS_APP.md](MACOS_APP.md) for build, bundle identity, permissions
+and ownership testing. The Python setup below remains the development fallback.
+
 Keep the project folder containing both `coach_app` and `.venv`. Install Python
 dependencies using `.venv/bin/python -m pip install -r coach_app/requirements.txt`.
 That interpreter must include working Tk support.
@@ -19,15 +23,16 @@ longer depend on Terminal exports. The key is never stored in scenes, code, IPC
 requests, or logs. The app does not read `.env`.
 
 Startup probes 127.0.0.1:8765 and reuses an existing compatible Coach. Otherwise,
-Unity starts `.venv/bin/python coach_app/main.py` with a private IPC token and
+Unity starts packaged Coach.app if available, otherwise
+`.venv/bin/python coach_app/main.py`, with a private IPC token and
 collapsed floating widget. It never starts a second instance on a port already owned by Coach.
 Keep one standalone game active per port; configure another port for independent
 games. A reused manually started Coach is never terminated by Unity.
 
 ## Editor Setup
 
-Entering Play Mode automatically launches Coach using the Unity project's
-`.venv/bin/python`, with no visible Terminal. No Inspector setup is required for
+Entering Play Mode automatically launches packaged Coach.app when available, or
+the Unity project's `.venv/bin/python`, with no visible Terminal. No Inspector setup is required for
 the standard project layout. An explicit Coach Project Directory or COACH_APP_ROOT
 overrides the default. Readiness checks retry asynchronously for about 12 seconds;
 the game does not wait on a blocking sleep and End Session notifications wait for

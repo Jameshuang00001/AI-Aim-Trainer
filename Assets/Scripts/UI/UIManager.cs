@@ -68,6 +68,10 @@ public class UIManager : MonoBehaviour
     [SerializeField] private GameObject summaryPanel;
     [SerializeField] private Text summaryText;
 
+    // Read-only visibility for diagnostics; these never open or close a panel.
+    public bool IsStartMenuVisible => startMenuPanel != null && startMenuPanel.activeInHierarchy;
+    public bool IsSummaryPanelVisible => summaryPanel != null && summaryPanel.activeInHierarchy;
+
     [Header("Miss Feedback")]
     [SerializeField] private Text missFeedbackText;
     [SerializeField, Min(0f)] private float missFeedbackDuration = 0.2f;

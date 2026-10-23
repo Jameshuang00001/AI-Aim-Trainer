@@ -31,6 +31,10 @@ public class PlayerController : MonoBehaviour
     private float lastJumpPressedTime = float.NegativeInfinity;
     private float cameraPitch;
     public float MouseSensitivity => mouseSensitivity;
+    // Read-only observations for temporary input diagnostics; not an input source.
+    public Vector2 LastLookInput { get; private set; }
+    public int LastLookInputFrame { get; private set; } = -1;
+    public Camera PlayerCamera => playerCamera;
 
     public void SetMouseSensitivity(float value)
     {
@@ -65,8 +69,10 @@ public class PlayerController : MonoBehaviour
 
     private void HandleMouseLook()
     {
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
+        LastLookInput = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
+        LastLookInputFrame = Time.frameCount;
+        float mouseX = LastLookInput.x * mouseSensitivity;
+        float mouseY = LastLookInput.y * mouseSensitivity;
 
         transform.Rotate(Vector3.up * mouseX);
 

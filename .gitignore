@@ -30,3 +30,22 @@ __pycache__/
 *.pyc
 .env
 .env.*
+
+# Local macOS Coach build products (never commit dependencies or signing output).
+dist/
+
+# Local screenshot datasets and development caches.
+datasets/xbot_head/raw/*
+!datasets/xbot_head/raw/.gitkeep
+datasets/xbot_head/images/**/*.png
+datasets/xbot_head/images/**/*.jpg
+datasets/xbot_head/images/**/*.jpeg
+datasets/xbot_head/labels/**/*.txt
+yolo_dev/capture_region.json
+yolo_dev/capture_region.editor.json
+yolo_dev/.cache/
+datasets/xbot_head/annotations/
+datasets/xbot_head/annotation_backups/
+datasets/xbot_head/.annotation-export-*/
+datasets/xbot_head/split_manifest.json
+datasets/xbot_head/validation/

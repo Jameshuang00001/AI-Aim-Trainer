@@ -42,6 +42,22 @@ class IPCTests(unittest.TestCase):
             self.assertEqual(response.status, 202)
         self.assertEqual(self.server.commands.get_nowait(), self.path)
 
+    def test_shutdown_requires_owned_launch_and_matching_token(self):
+        def shutdown(token):
+            return urlopen(Request(self.url + '/shutdown', method='POST', data=b'',
+                                   headers={'X-Coach-Token': token}), timeout=3)
+        with self.assertRaises(HTTPError) as error:
+            shutdown('test-token')
+        self.assertEqual(error.exception.code, 403)
+        self.server.launch_id = 'unit-test-owned-launch'
+        with self.assertRaises(HTTPError) as error:
+            shutdown('wrong-token')
+        self.assertEqual(error.exception.code, 403)
+        self.assertFalse(self.server.shutdown_requested.is_set())
+        with shutdown('test-token') as response:
+            self.assertEqual(response.status, 200)
+        self.assertTrue(self.server.shutdown_requested.is_set())
+
     def test_reject_wrong_token_and_browser_origin(self):
         for kwargs in ({"token": "wrong"}, {"origin": "https://example.com"}):
             with self.assertRaises(HTTPError) as error:

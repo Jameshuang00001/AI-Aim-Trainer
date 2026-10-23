@@ -38,7 +38,8 @@ English-only report formatting are unchanged.
 
 ## Running
 
-Unity automatically launches `.venv/bin/python coach_app/main.py` and uses the
+Unity prefers packaged `Coach.app` on macOS when present, otherwise automatically
+launches `.venv/bin/python coach_app/main.py`, and uses the
 existing floating widget and loopback IPC. End Session still exports JSON and
 automatically opens/analyzes the report. Manual launch remains supported:
 
@@ -47,6 +48,21 @@ automatically opens/analyzes the report. Manual launch remains supported:
 ```
 
 See [INTEGRATION.md](INTEGRATION.md) for lifecycle and platform details.
+
+## Optional Mode 2 Experiment
+
+For the standalone macOS app, stable bundle identity, permission setup and Unity
+launch behavior, see [MACOS_APP.md](MACOS_APP.md).
+
+Mode 2: Head Lock is opt-in and OFF by default. It uses the local YOLO model,
+requires holding RMB and verified Unity locked-cursor response, and never fires.
+See [MODE2_SETUP.md](MODE2_SETUP.md) for the required read-only Unity publisher,
+permissions, calibration, F8/Stop controls, telemetry location and test checklist.
+It does not change Mode 1 analysis, credentials or the existing session IPC.
+
+For isolated tagged Quartz event observation and the per-process listen-only tap,
+see [QUARTZ_PROVENANCE.md](QUARTZ_PROVENANCE.md). Each bounded pulse requires a
+fresh F6 press; the tool does not suppress local hardware input.
 
 Tests mock all Keychain reads/writes; they do not access or change your real key:
 

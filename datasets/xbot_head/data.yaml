@@ -1,0 +1,7 @@
+# Explicit root avoids Ultralytics resolving this against its global datasets_dir.
+# Update only this path if you relocate the project.
+path: /Users/james/UnityProjects/AI-Aim-Trainer/datasets/xbot_head
+train: images/train
+val: images/val
+names:
+  0: xbot_head

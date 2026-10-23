@@ -4,6 +4,7 @@ import hmac
 import json
 import queue
 import threading
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -20,6 +21,8 @@ class CoachServer(ThreadingHTTPServer):
     def __init__(self, port: int, token: str = "") -> None:
         self.commands = queue.Queue()
         self.token = token
+        self.launch_id = os.environ.get("COACH_LAUNCH_ID", "")
+        self.shutdown_requested = threading.Event()
         super().__init__(("127.0.0.1", port), Handler)
 
     def start(self) -> None:
@@ -44,6 +47,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         available, error = credential_status()
         self.reply(200, {"app": "aim-trainer-coach", "protocol": 1,
+                         "process_id": os.getpid(), "launch_id": self.server.launch_id,
                          "api_key_available": available, "credential_error": error})
 
     def do_POST(self) -> None:
@@ -55,6 +59,14 @@ class Handler(BaseHTTPRequestHandler):
         token = self.headers.get("X-Coach-Token", "")
         if not hmac.compare_digest(token.encode(), self.server.token.encode()):
             self.reply(403, {"error": "Coach IPC token mismatch"})
+            return
+        if self.path == "/shutdown":
+            # Only a Unity-owned launch may accept its authenticated shutdown.
+            if not self.server.launch_id or not self.server.token:
+                self.reply(403, {"error": "Not an owned launch"})
+                return
+            self.server.shutdown_requested.set()
+            self.reply(200, {"stopping": True})
             return
         if self.path != "/analyze":
             self.reply(404, {"error": "Unknown command"})

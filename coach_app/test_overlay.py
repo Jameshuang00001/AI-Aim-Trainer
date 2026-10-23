@@ -28,7 +28,7 @@ class OverlayTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
 
     def tearDown(self):
-        self.app.closed = True
+        self.app.shutdown()
         self.root.after_cancel(self.app.poll_id)
         self.root.destroy()
         self.directory.cleanup()
@@ -57,11 +57,11 @@ class OverlayTests(unittest.TestCase):
         self.root.update()
         self.assertTrue(self.app.expanded)
         self.assertEqual((self.root.winfo_width(), self.root.winfo_height()), (480, 650))
-        self.assertEqual(str(self.app.mode_menu.entrycget(1, "state")), "disabled")
+        self.assertEqual(str(self.app.mode_menu.entrycget(1, "state")), "normal")
         self.assertGreater(self.app.report.winfo_height(), 90)
         for control in (self.app.latest_button, self.app.open_button, self.app.mode_button, self.app.minimize_button):
             self.assertGreaterEqual(control.winfo_width(), control.winfo_reqwidth())
-            self.assertLessEqual(control.winfo_rooty() + control.winfo_height(), self.root.winfo_y() + 650)
+            self.assertLessEqual(control.winfo_rooty() + control.winfo_height(), self.root.winfo_rooty() + 650)
         self.app.minimize_button.invoke()
         self.root.update()
         self.assertFalse(self.app.expanded)
@@ -77,6 +77,91 @@ class OverlayTests(unittest.TestCase):
         self.assertEqual(self.app.widget_position, position)
         self.assertEqual((self.root.winfo_x(), self.root.winfo_y()), position)
         self.assertFalse(any(isinstance(child, tk.Toplevel) for child in self.root.winfo_children()))
+
+    def test_mode_two_controls_and_mode_one_disengage(self):
+        self.app.show_window()
+        self.app.select_mode(2)
+        self.root.update()
+        self.assertTrue(self.app.assist_controls.winfo_ismapped())
+        self.assertGreater(self.app.report.winfo_height(), 40)
+        for control in self.app.assist_controls.winfo_children():
+            self.assertLessEqual(control.winfo_rooty() + control.winfo_height(), self.root.winfo_y() + self.root.winfo_height())
+        button = self.app.verify_camera_button
+        self.assertGreaterEqual(button.winfo_height(), button.winfo_reqheight())
+        self.assertEqual(self.root.winfo_containing(button.winfo_rootx()+10, button.winfo_rooty()+10), button)
+        self.app.assist_status.set('Assist: READY | ' + 'Waiting for a safe camera response. '*12)
+        self.root.geometry('480x600')
+        self.root.update()
+        for control in (button, self.app.window_id_entry, self.app.start_assist_button,
+                        self.app.stop_assist_button, self.app.window_combo, self.app.latest_button):
+            self.assertGreaterEqual(control.winfo_height(), control.winfo_reqheight())
+            self.assertLessEqual(control.winfo_rooty()+control.winfo_height(), self.root.winfo_rooty()+600)
+        with patch.object(self.app.assist, 'verify') as verify:
+            button.configure(command=self.app.assist.verify)
+            button.invoke()
+            verify.assert_called_once()
+        self.app.select_mode(1)
+        self.root.update()
+        self.assertFalse(self.app.assist_controls.winfo_ismapped())
+        self.assertTrue(self.app.assist.stop_event.is_set())
+
+    def test_live_confirmation_requires_dry_run_and_never_starts_worker(self):
+        self.app.show_window(); self.app.select_mode(2)
+        self.assertTrue(self.app.assist_dry_run.get())
+        self.app.assist_dry_run.set(False)
+        with patch('coach_app.overlay.messagebox.askyesno') as dialog:
+            self.app.confirm_live_assist()
+            dialog.assert_not_called()
+        self.assertTrue(self.app.assist_dry_run.get())
+        self.assertIsNone(self.app.assist.thread)
+        self.app.assist.dry_proof = {'key': ('test',), 'capture_size': (900, 600)}
+        self.app.assist_dry_run.set(False)
+        with patch('coach_app.overlay.messagebox.askyesno', return_value=True):
+            self.app.confirm_live_assist()
+        self.assertTrue(self.app.assist.live_authorized)
+        self.assertIsNone(self.app.assist.thread)
+        self.app.stop_mode2()
+        self.assertTrue(self.app.assist_dry_run.get())
+        self.assertFalse(self.app.assist.live_authorized)
+
+    def test_window_id_accepts_keyboard_selection_delete_and_native_focus(self):
+        self.app.show_window()
+        self.app.select_mode(2)
+        self.root.update()
+        entry = self.app.window_id_entry
+        entry.event_generate('<Button-1>', x=8, y=8)
+        self.root.update()
+        self.assertEqual(self.root.focus_get(), entry)
+        if sys.platform == 'darwin':
+            window = self.app.floating_policy.window
+            self.assertTrue(window.canBecomeKeyWindow())
+            self.assertTrue(window.isKeyWindow())
+        for key in ('1','2','3'):
+            entry.event_generate('<KeyPress>', keysym=key)
+        self.root.update()
+        self.assertEqual(entry.get(), '123')
+        entry.insert('end', 'x')
+        self.assertEqual(entry.get(), '123')
+        self.app.select_window_id_text(None)
+        entry.event_generate('<KeyPress>', keysym='BackSpace')
+        self.root.update()
+        self.assertEqual(entry.get(), '')
+        self.app.floating_policy.apply()
+        self.assertEqual(self.root.focus_get(), entry)
+
+    def test_automatic_inventory_and_manual_override_never_start_assist(self):
+        self.app.show_window()
+        with patch.object(self.app, 'detect_windows'):
+            self.app.select_mode(2)
+        with patch.object(self.app.assist, 'start', return_value=True) as start:
+            self.app.window_results.put(([{'id': 123, 'app': 'Unity', 'title': 'Game'}], None))
+            self.app.update_windows()
+            start.assert_not_called()
+            self.app.start_assist()
+            start.assert_called_with(123)
+            self.app.assist_window_id.set('456')
+            self.app.start_assist()
+            start.assert_called_with(456)
 
     @unittest.skipUnless(sys.platform == "darwin", "macOS native window checks")
     def test_native_level_survives_expansion_and_minimize(self):

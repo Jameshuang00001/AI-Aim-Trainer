@@ -12,9 +12,15 @@ public class CoachAppBridge : MonoBehaviour
 {
     [Tooltip("Folder containing coach_app and .venv. Set this for standalone builds, or set COACH_APP_ROOT.")]
     [SerializeField] private string coachProjectDirectory;
+    [Tooltip("Optional absolute Coach.app path on macOS. Otherwise checks project dist/Coach.app, then /Applications/Coach.app.")]
+    [SerializeField] private string packagedCoachPath;
     [SerializeField, Range(1024, 65535)] private int ipcPort = 8765;
     private static CoachAppBridge instance;
     private Process ownedProcess;
+    private Process ownedAppProcess;
+    private DateTime ownedAppStartTime;
+    private string ownedLaunchId;
+    private bool launchedPackaged;
     private string token;
     private bool connected;
     private bool initializing;
@@ -27,6 +33,8 @@ public class CoachAppBridge : MonoBehaviour
         public string app = "";
         public int protocol = 0;
         public bool api_key_available = false;
+        public string launch_id = "";
+        public int process_id;
     }
     [Serializable] private class AnalyzeCommand { public string path; }
 
@@ -79,6 +87,17 @@ public class CoachAppBridge : MonoBehaviour
             try { health = JsonUtility.FromJson<Health>(body.Result); }
             catch (ArgumentException) { }
             connected = health != null && health.app == "aim-trainer-coach" && health.protocol == 1;
+            // Launch Services owns the app PID; `open -W` is only our waiter.
+            // Claim an app only when it identifies this specific launch nonce.
+            if (connected && launchedPackaged && ownedAppProcess == null &&
+                !string.IsNullOrEmpty(ownedLaunchId) && health.launch_id == ownedLaunchId && health.process_id > 0)
+            {
+                try {
+                    ownedAppProcess = Process.GetProcessById(health.process_id);
+                    ownedAppStartTime = ownedAppProcess.StartTime;
+                }
+                catch (Exception) { ownedAppProcess = null; }
+            }
             if (connected)
             {
                 Debug.Log("Coach IPC ready (" + (ownedProcess != null && !ownedProcess.HasExited ? "owned process" : "existing process") + ").");
@@ -142,19 +161,35 @@ public class CoachAppBridge : MonoBehaviour
             : Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
         string python = Path.Combine(root, ".venv", "bin", "python");
         string main = Path.Combine(root, "coach_app", "main.py");
-        if (!File.Exists(python) || !File.Exists(main))
+        string appPath = packagedCoachPath;
+        bool macOS = Application.platform == RuntimePlatform.OSXEditor || Application.platform == RuntimePlatform.OSXPlayer;
+        if (macOS && string.IsNullOrWhiteSpace(appPath))
+        {
+            appPath = Path.Combine(root, "dist", "Coach.app");
+            if (!Directory.Exists(appPath)) appPath = "/Applications/Coach.app";
+        }
+        bool useApp = macOS && !string.IsNullOrWhiteSpace(appPath) &&
+            File.Exists(Path.Combine(appPath, "Contents", "MacOS", "Coach"));
+        if (!useApp && (!File.Exists(python) || !File.Exists(main)))
         {
             Debug.LogWarning("Coach launch skipped: configure Coach Project Directory (or COACH_APP_ROOT) containing .venv/bin/python and coach_app/main.py.");
             return;
         }
         token = Guid.NewGuid().ToString("N");
+        ownedLaunchId = Guid.NewGuid().ToString("N");
+        launchedPackaged = useApp;
         try
         {
             ProcessStartInfo info = new ProcessStartInfo
             {
-                FileName = python,
-                Arguments = "\"" + main.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"",
-                WorkingDirectory = root,
+                // Launch Services gives the packaged app its native application
+                // identity. Do not execute its internal binary as a Python child.
+                FileName = useApp ? "/usr/bin/open" : python,
+                Arguments = useApp
+                    ? "-n -g -W " + QuoteArgument(appPath) + " --args --ipc-port " + ipcPort +
+                        " --ipc-token " + token + " --launch-id " + ownedLaunchId + " --project-root " + QuoteArgument(root)
+                    : QuoteArgument(main),
+                WorkingDirectory = Directory.Exists(root) ? root : Path.GetTempPath(),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -162,13 +197,15 @@ public class CoachAppBridge : MonoBehaviour
             };
             info.EnvironmentVariables["COACH_IPC_TOKEN"] = token;
             info.EnvironmentVariables["COACH_IPC_PORT"] = ipcPort.ToString();
+            info.EnvironmentVariables["COACH_LAUNCH_ID"] = ownedLaunchId;
+            info.EnvironmentVariables["COACH_APP_ROOT"] = root;
             info.EnvironmentVariables["COACH_START_HIDDEN"] = "1";
             info.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
             // API credentials are inherited from the environment, never stored here.
             // Python resolves Keychain credentials when Unity Hub has no API key
             // in its environment. Unity never reads or receives that secret.
             ownedProcess = Process.Start(info);
-            Debug.Log("Started owned Coach using project .venv/bin/python; waiting for IPC readiness.");
+            Debug.Log("Started owned Coach using " + (useApp ? "packaged Coach.app via Launch Services" : "project .venv/bin/python") + "; waiting for IPC readiness.");
             // Drain both pipes without logging private session data or credentials.
             ownedProcess.BeginOutputReadLine();
             ownedProcess.BeginErrorReadLine();
@@ -177,6 +214,11 @@ public class CoachAppBridge : MonoBehaviour
         {
             Debug.LogWarning("Coach launch failed (" + error.GetType().Name + "). Gameplay continues.");
         }
+    }
+
+    private static string QuoteArgument(string value)
+    {
+        return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
     }
 
     public static void NotifySession(string path)
@@ -217,10 +259,38 @@ public class CoachAppBridge : MonoBehaviour
     {
         // Never search by process name or kill a manually started/shared Coach.
         if (ownedProcess == null) return;
+        if (!string.IsNullOrEmpty(ownedLaunchId) && http != null)
+        {
+            try {
+                using (var request = new HttpRequestMessage(HttpMethod.Post, BaseUrl + "/shutdown"))
+                {
+                    request.Headers.Add("X-Coach-Token", token);
+                    var pending = http.SendAsync(request);
+                    if (pending.Wait(1200)) pending.Result.Dispose();
+                }
+            }
+            catch (Exception) { }
+        }
+        if (ownedAppProcess != null)
+        {
+            try {
+                if (!ownedAppProcess.WaitForExit(700))
+                {
+                    // Protect against PID reuse: never kill by name or an old PID alone.
+                    using (Process current = Process.GetProcessById(ownedAppProcess.Id))
+                        if (current.StartTime == ownedAppStartTime) current.Kill();
+                }
+            }
+            catch (Exception) { }
+            ownedAppProcess.Dispose();
+            ownedAppProcess = null;
+        }
         try { if (!ownedProcess.HasExited) ownedProcess.Kill(); }
         catch (Exception) { }
         ownedProcess.Dispose();
         ownedProcess = null;
+        ownedLaunchId = null;
+        launchedPackaged = false;
     }
 
     private void OnApplicationQuit() { shuttingDown = true; StopOwnedCoach(); }

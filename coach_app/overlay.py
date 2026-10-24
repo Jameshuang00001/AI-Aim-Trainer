@@ -71,7 +71,7 @@ class CoachWindow:
         self.speed_text = tk.StringVar(value="Assist speed: 65 deg/s")
         ttk.Label(self.controls, textvariable=self.speed_text).pack(anchor="w")
         ttk.Scale(self.controls, from_=5, to=180, variable=self.speed, command=self.speed_changed).pack(fill="x")
-        ttk.Label(self.controls, text="F8 / ESC stops · Manual firing only").pack()
+        ttk.Label(self.controls, text="Proximity: mouse still 150 ms · F8 / ESC stops").pack()
         ttk.Button(self.controls, text="Start Assist", command=self.start_assist).pack(side="left")
         ttk.Button(self.controls, text="Stop", command=self.stop_mode2).pack(side="left")
         self.status = tk.StringVar(value="Ready")

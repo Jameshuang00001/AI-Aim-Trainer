@@ -26,22 +26,39 @@ public class AssistStatePublisher : MonoBehaviour
     public readonly List<CalibrationSample> Calibration = new List<CalibrationSample>();
     private HitZone activeHead;
     private CalibrationSample activeSample;
-    public string Feedback => Calibration.Count == 0 ? "No corrections yet" :
+    // Require a quiet interval, not just a single empty input frame between mouse reports.
+    private const double MouseQuietSeconds = 0.15;
+    private double quietSince = -1;
+    private int completedCount;
+    private double entryTotal, pathTotal, residualTotal;
+    public string Feedback => completedCount == 0 ? "No completed corrections yet" :
         string.Format(System.Globalization.CultureInfo.InvariantCulture,
-        "Corrections {0} | Last entry {1:F2} deg | Applied yaw {2:F2}, pitch {3:F2} deg | Residual {4:F2} deg",
-        Calibration.Count, Calibration[Calibration.Count-1].initial_error_deg,
-        Calibration[Calibration.Count-1].applied_yaw_deg, Calibration[Calibration.Count-1].applied_pitch_deg,
-        Calibration[Calibration.Count-1].remaining_error_deg);
+        "Completed {0} | Mean entry {1:F3} deg | Mean assist path {2:F3} deg | Mean end residual {3:F3} deg",
+        completedCount, entryTotal / completedCount, pathTotal / completedCount, residualTotal / completedCount);
+    private bool MouseIsQuiet(Vector2 input, double now)
+    {
+        if (input.x != 0f || input.y != 0f) { quietSince = now; return false; }
+        if (quietSince < 0) quietSince = now;
+        return now - quietSince >= MouseQuietSeconds;
+    }
     public void FinishCalibration(string reason)
     {
         if (activeSample != null)
         {
             activeSample.duration_ms = (float)((Time.realtimeSinceStartupAsDouble - acquisitionStarted) * 1000);
             activeSample.end_reason = reason;
+            completedCount++;
+            entryTotal += activeSample.initial_error_deg;
+            pathTotal += activeSample.path_length_deg;
+            residualTotal += activeSample.remaining_error_deg;
         }
         activeHead = null; activeSample = null;
     }
-    public void ResetCalibration() { FinishCalibration("reset"); Calibration.Clear(); }
+    public void ResetCalibration()
+    {
+        FinishCalibration("reset"); Calibration.Clear();
+        completedCount = 0; entryTotal = pathTotal = residualTotal = 0; quietSince = -1;
+    }
     private int lastCommand = -1;
     private float leaseUntil;
     private bool remote;
@@ -52,10 +69,10 @@ public class AssistStatePublisher : MonoBehaviour
         float requestedSpeed = float.IsNaN(speed) || float.IsInfinity(speed) ? 65f : Mathf.Clamp(speed, 5f, 180f);
         if (!Mathf.Approximately(requestedSpeed, maxDegreesPerSecond)) FinishCalibration("speed_changed");
         maxDegreesPerSecond = requestedSpeed;
-        if (sequence != lastCommand) { Armed = true; remote = true; ProximityAssist = mode == "proximity"; proximityDegrees = float.IsNaN(radius) || float.IsInfinity(radius) ? 3f : Mathf.Clamp(radius, 0.5f, 10f); Status = "READY"; lastCommand = sequence; }
+        if (sequence != lastCommand) { quietSince = -1; Armed = true; remote = true; ProximityAssist = mode == "proximity"; proximityDegrees = float.IsNaN(radius) || float.IsInfinity(radius) ? 3f : Mathf.Clamp(radius, 0.5f, 10f); Status = "READY"; lastCommand = sequence; }
         leaseUntil = Time.realtimeSinceStartup + 0.6f;
     }
-    public void Stop() { Armed = false; Status = "OFF"; FinishCalibration("stopped"); }
+    public void Stop() { quietSince = -1; Armed = false; Status = "OFF"; FinishCalibration("stopped"); }
     private void Update()
     {
         // Player Update can return early on pause/focus loss; close measurements here too.
@@ -63,6 +80,7 @@ public class AssistStatePublisher : MonoBehaviour
         if (cursor == null || !cursor.CanReadGameplayInput ||
             (!ProximityAssist && !Input.GetMouseButton(1)))
         {
+            quietSince = -1;
             FinishCalibration("input_gate_or_release");
             if (Armed) Status = "READY";
         }
@@ -72,7 +90,14 @@ public class AssistStatePublisher : MonoBehaviour
     public void ApplyAssist(PlayerController player)
     {
         if (!CanAssist(player.PlayerCamera) || (!ProximityAssist && !Input.GetMouseButton(1)))
-        { FinishCalibration("input_gate_or_release"); return; }
+        { quietSince = -1; FinishCalibration("input_gate_or_release"); return; }
+        if (ProximityAssist && !MouseIsQuiet(new Vector2(Input.GetAxisRaw("Mouse X"),
+            Input.GetAxisRaw("Mouse Y")), Time.realtimeSinceStartupAsDouble))
+        {
+            FinishCalibration("mouse_moved");
+            Status = "WAITING FOR STILL MOUSE";
+            return;
+        }
         Status = "READY";
         var camera = player.PlayerCamera;
         var nearest = FindHead(camera, player, ProximityAssist ? proximityDegrees : coneDegrees);

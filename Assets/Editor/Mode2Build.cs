@@ -47,6 +47,15 @@ public static class Mode2Build
             if (assist.AssistSpeed != 15f) throw new System.Exception("Live speed was not applied");
             assist.Stop(); assist.Command(true, 5, "hold", 3f, 120f);
             if (assist.Armed) throw new System.Exception("Speed change rearmed stopped assistance");
+            var quiet = typeof(AssistStatePublisher).GetMethod("MouseIsQuiet", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if ((bool)quiet.Invoke(assist, new object[] { new UnityEngine.Vector2(0.001f, 0f), 10d }))
+                throw new System.Exception("Moving mouse accepted");
+            if ((bool)quiet.Invoke(assist, new object[] { UnityEngine.Vector2.zero, 10.1d }))
+                throw new System.Exception("Mouse quiet interval too short accepted");
+            if (!(bool)quiet.Invoke(assist, new object[] { UnityEngine.Vector2.zero, 10.16d }))
+                throw new System.Exception("Still mouse rejected");
+            if ((bool)quiet.Invoke(assist, new object[] { new UnityEngine.Vector2(0f, -0.001f), 10.17d }))
+                throw new System.Exception("Mouse restart did not interrupt");
             CheckProximityZone(assist);
             UnityEngine.Debug.Log("Mode2 safety and proximity-zone checks passed");
         }

@@ -99,12 +99,13 @@ def complete_report(report: str, session: dict[str, Any], require_ai: bool = Fal
         summary += "\n- Small sample size; conclusions are tentative."
     correction = data.get("aim_correction_summary", {})
     if correction.get("acquisitions"):
-        summary += (f"\n- Assist: {correction['acquisitions']} acquisitions; "
-                    f"{correction['settled_acquisitions']} reached <=0.1 deg at least once; "
-                    f"{correction['ended_on_target_acquisitions']} ended <=0.1 deg.")
-        residual = correction["mean_residual_deg"]
-        if residual is not None:
-            summary += f"\n- Mean end residual: {residual:.2f} deg. Assisted results."
+        summary += f"\n- Assist: {correction['acquisitions']} acquisitions. Assisted results."
+        for label, key in (("Mean entry error", "mean_entry_error_deg"),
+                           ("Mean assist path", "mean_applied_path_deg"),
+                           ("Mean end residual", "mean_residual_deg")):
+            value = correction[key]
+            if value is not None:
+                summary += f"\n- {label}: {value:.3f} deg."
     defaults = {
         "Session Summary": summary,
         "Strengths": f"- Local fallback: {data['hits']} valid hits recorded.",
@@ -123,7 +124,8 @@ def complete_report(report: str, session: dict[str, Any], require_ai: bool = Fal
         if section == "Session Summary":
             text = summary
         text = re.sub(r"(-?\d+\.\d+)\s*ms\b", lambda m: f"{round(float(m[1]))} ms", text)
-        text = re.sub(r"-?\d+\.\d{2,}", lambda m: f"{float(m[0]):.1f}", text)
+        if section != "Session Summary":
+            text = re.sub(r"-?\d+\.\d{2,}", lambda m: f"{float(m[0]):.1f}", text)
         text = text.replace("**", "")
         # Budget each section independently so no required section is cut off.
         words = text.split()

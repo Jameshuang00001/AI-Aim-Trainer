@@ -40,5 +40,5 @@ class AssistAnalysisTests(unittest.TestCase):
                  aim_corrections=[dict(time_to_settle_ms=200, remaining_error_deg=3.4)]), require_ai=True)
         self.assertNotIn('invented', report)
         self.assertIn('89.6%', report)
-        self.assertIn('1 reached <=0.1 deg at least once; 0 ended <=0.1 deg', report)
-        self.assertIn('Mean end residual: 3.4 deg', report)
+        self.assertNotIn('reached <=0.1', report)
+        self.assertIn('Mean end residual: 3.400 deg', report)

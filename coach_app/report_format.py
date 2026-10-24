@@ -58,6 +58,7 @@ def prepare_session(session: dict[str, Any]) -> dict[str, Any]:
         prepared["aim_correction_summary"] = {
             "acquisitions": len(records), "settled_acquisitions": len(settled),
             "ended_on_target_acquisitions": len(ended_on_target),
+            "not_ended_on_target_acquisitions": len(records) - len(ended_on_target),
             "mean_entry_error_deg": mean(records, "initial_error_deg"),
             "mean_residual_deg": mean(records, "remaining_error_deg"),
             "mean_applied_path_deg": mean(records, "path_length_deg"),
@@ -99,13 +100,14 @@ def complete_report(report: str, session: dict[str, Any], require_ai: bool = Fal
         summary += "\n- Small sample size; conclusions are tentative."
     correction = data.get("aim_correction_summary", {})
     if correction.get("acquisitions"):
-        summary += f"\n- Assist: {correction['acquisitions']} acquisitions. Assisted results."
-        for label, key in (("Mean entry error", "mean_entry_error_deg"),
-                           ("Mean assist path", "mean_applied_path_deg"),
-                           ("Mean end residual", "mean_residual_deg")):
-            value = correction[key]
-            if value is not None:
-                summary += f"\n- {label}: {value:.3f} deg."
+        summary += "\n- Assistance was used, so these hits do not measure unaided aim."
+        entry = correction["mean_entry_error_deg"]
+        residual = correction["mean_residual_deg"]
+        if entry is not None and residual is not None:
+            summary += (f"\n- Across {correction['acquisitions']} corrections, the average gap from the head "
+                        f"was {entry:.3f} deg before help and {residual:.3f} deg when help ended.")
+        elif residual is not None:
+            summary += f"\n- The average gap still left when help ended was {residual:.3f} deg."
     defaults = {
         "Session Summary": summary,
         "Strengths": f"- Local fallback: {data['hits']} valid hits recorded.",

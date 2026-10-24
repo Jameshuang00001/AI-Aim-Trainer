@@ -41,4 +41,14 @@ class AssistAnalysisTests(unittest.TestCase):
         self.assertNotIn('invented', report)
         self.assertIn('89.6%', report)
         self.assertNotIn('reached <=0.1', report)
-        self.assertIn('Mean end residual: 3.400 deg', report)
+        self.assertIn('average gap still left when help ended was 3.400 deg', report)
+
+    def test_player_summary_explains_gap_and_keeps_counts_consistent(self):
+        from coach_app.report_format import complete_report
+        session = dict(shots=41, hits=40, misses=1, accuracy=97.6, avg_reaction_ms=1837,
+                       aim_corrections=[dict(initial_error_deg=1.117, remaining_error_deg=.317)])
+        result = complete_report('', session)
+        self.assertIn('before help and 0.317 deg when help ended', result)
+        self.assertIn('do not measure unaided aim', result)
+        self.assertNotIn('Mean entry error:', result)
+        self.assertEqual(prepare_session(session)['aim_correction_summary']['not_ended_on_target_acquisitions'], 1)

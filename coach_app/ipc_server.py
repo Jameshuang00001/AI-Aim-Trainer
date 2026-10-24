@@ -25,6 +25,8 @@ class CoachServer(ThreadingHTTPServer):
         self.assist_enabled = False
         self.assist_sequence = 0
         self.assist_mode = "hold"
+        self.assist_radius = 3.0
+        self.assist_feedback = "No corrections yet"
         self.show_requested = threading.Event()
         self.companion_visible = False
         self.companion_floating = False
@@ -58,8 +60,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(403, {"error": "Forbidden"})
                 return
             self.server.assist_status = parse_qs(urlparse(self.path).query).get("status", ["OFF"])[0][:64]
+            self.server.assist_feedback = parse_qs(urlparse(self.path).query).get("feedback", [""])[0][:256]
             self.server.assist_seen = time.monotonic()
-            self.reply(200, {"enabled": self.server.assist_enabled, "sequence": self.server.assist_sequence, "mode": self.server.assist_mode})
+            self.reply(200, {"enabled": self.server.assist_enabled, "sequence": self.server.assist_sequence, "mode": self.server.assist_mode, "radius": self.server.assist_radius})
             return
         if urlparse(self.path).path != "/health":
             self.reply(404, {"error": "Unknown command"})

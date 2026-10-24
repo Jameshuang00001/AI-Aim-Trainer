@@ -32,6 +32,7 @@ SYSTEM_PROMPT = (
     "say the sample size is small and conclusions are tentative. "
     "Strengths: two brief observations supported by exact JSON numbers. "
     "Weaknesses: two brief limitations or issues supported by exact JSON numbers. "
+    "If aim_corrections is present, distinguish pre-assist angular error from applied assistance and residual error. Assisted hit statistics are not unaided aim skill. "
     "Do not invent benchmarks, trends, modes, or evidence; when data cannot support an "
     "observation, state the limitation instead. "
     "Next Drill: one focused drill with a concrete practice goal tied to this data. "

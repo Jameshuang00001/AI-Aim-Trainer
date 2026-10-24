@@ -1,4 +1,6 @@
 using UnityEngine;
+using System;
+using System.Collections.Generic;
 
 // Mode 2 stays entirely inside this aim trainer. No input injection or firing.
 public class AssistStatePublisher : MonoBehaviour
@@ -9,38 +11,69 @@ public class AssistStatePublisher : MonoBehaviour
     public static AssistStatePublisher Instance { get; private set; }
     public bool Armed { get; private set; }
     public string Status { get; private set; } = "OFF";
-    public bool ShotCorrection { get; private set; }
+    public bool ProximityAssist { get; private set; }
+    private float proximityDegrees = 3f;
+    [Serializable] public class CalibrationSample
+    {
+        public string target_id, mode;
+        public float initial_yaw_error_deg, initial_pitch_error_deg, initial_error_deg;
+        public float applied_yaw_deg, applied_pitch_deg, remaining_error_deg;
+    }
+    public readonly List<CalibrationSample> Calibration = new List<CalibrationSample>();
+    private HitZone activeHead;
+    private CalibrationSample activeSample;
+    public string Feedback => Calibration.Count == 0 ? "No corrections yet" :
+        string.Format(System.Globalization.CultureInfo.InvariantCulture,
+        "Corrections {0} | Last entry {1:F2} deg | Applied yaw {2:F2}, pitch {3:F2} deg | Residual {4:F2} deg",
+        Calibration.Count, Calibration[Calibration.Count-1].initial_error_deg,
+        Calibration[Calibration.Count-1].applied_yaw_deg, Calibration[Calibration.Count-1].applied_pitch_deg,
+        Calibration[Calibration.Count-1].remaining_error_deg);
+    public void ResetCalibration() { Calibration.Clear(); activeHead = null; activeSample = null; }
     private int lastCommand = -1;
     private float leaseUntil;
     private bool remote;
     private void Awake() { Instance = this; }
-    public void Command(bool enabled, int sequence, string mode = "hold")
+    public void Command(bool enabled, int sequence, string mode = "hold", float radius = 3f)
     {
         if (!enabled) { if (remote || (lastCommand >= 0 && sequence != lastCommand)) Stop(); lastCommand = sequence; return; }
-        if (sequence != lastCommand) { Armed = true; remote = true; ShotCorrection = mode == "shot"; Status = "READY"; lastCommand = sequence; }
+        if (sequence != lastCommand) { Armed = true; remote = true; ProximityAssist = mode == "proximity"; proximityDegrees = float.IsNaN(radius) || float.IsInfinity(radius) ? 3f : Mathf.Clamp(radius, 0.5f, 10f); Status = "READY"; lastCommand = sequence; }
         leaseUntil = Time.realtimeSinceStartup + 0.6f;
     }
-    public void Stop() { Armed = false; Status = "OFF"; }
+    public void Stop() { Armed = false; Status = "OFF"; activeHead = null; activeSample = null; }
     private void Update()
     {
-        if (Armed && !ShotCorrection && !Input.GetMouseButton(1)) Status = "READY";
+        if (Armed && !ProximityAssist && !Input.GetMouseButton(1)) Status = "READY";
         if (Input.GetKey(KeyCode.F8) || Input.GetKey(KeyCode.Escape) ||
             (remote && Time.realtimeSinceStartup > leaseUntil)) Stop();
     }
     public void ApplyAssist(PlayerController player)
     {
-        if (!CanAssist(player.PlayerCamera) || ShotCorrection || !Input.GetMouseButton(1)) return;
+        if (!CanAssist(player.PlayerCamera) || (!ProximityAssist && !Input.GetMouseButton(1)))
+        { activeHead = null; activeSample = null; return; }
         Status = "READY";
         var camera = player.PlayerCamera;
-        var nearest = FindHead(camera, player, float.PositiveInfinity);
-        if (nearest == null) { Status = "NO VALID HEAD"; return; }
+        var nearest = FindHead(camera, player, ProximityAssist ? proximityDegrees : coneDegrees);
+        if (nearest == null) { Status = ProximityAssist ? "OUTSIDE ASSIST ZONE" : "NO VALID HEAD"; activeHead = null; activeSample = null; return; }
         Vector3 aim = nearest.GetComponent<Collider>().bounds.center - camera.transform.position;
         Vector3 angles = Quaternion.LookRotation(aim).eulerAngles;
         Vector2 error = new Vector2(Mathf.DeltaAngle(player.transform.eulerAngles.y, angles.y),
             Mathf.DeltaAngle(camera.transform.eulerAngles.x, angles.x));
+        if (activeHead != nearest)
+        {
+            activeHead = nearest;
+            activeSample = new CalibrationSample { target_id = nearest.TargetParent.TargetId,
+                mode = ProximityAssist ? "proximity" : "hold", initial_yaw_error_deg = error.x,
+                initial_pitch_error_deg = error.y, initial_error_deg = error.magnitude };
+            if (Calibration.Count < 10000) Calibration.Add(activeSample);
+        }
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
         Vector2 step = Vector2.ClampMagnitude(error * (1f - Mathf.Exp(-smoothing * dt)), maxDegreesPerSecond * dt);
+        Vector3 before = camera.transform.eulerAngles;
         if (error.magnitude > 0.05f) player.ApplyAssistRotation(step);
+        Vector3 after = camera.transform.eulerAngles;
+        activeSample.applied_yaw_deg += Mathf.DeltaAngle(before.y, after.y);
+        activeSample.applied_pitch_deg += Mathf.DeltaAngle(before.x, after.x);
+        activeSample.remaining_error_deg = Vector3.Angle(camera.transform.forward, aim);
         Status = "ASSISTING";
     }
     private bool CanAssist(Camera camera)
@@ -53,18 +86,7 @@ public class AssistStatePublisher : MonoBehaviour
             !session.IsPaused && !session.IsSummaryOpen && cursor != null && cursor.GameplayInputEnabled &&
             Cursor.lockState == CursorLockMode.Locked && Time.timeScale > 0f;
     }
-    // Called only by a manually initiated shot, immediately before the original hit test.
-    public Ray CorrectShot(Camera camera, Ray original, float range)
-    {
-        if (!ShotCorrection || !CanAssist(camera) || !Input.GetMouseButtonDown(0)) return original;
-        var head = FindHead(camera, camera.GetComponentInParent<PlayerController>(), range);
-        if (head == null) { Status = "NO VALID HEAD"; return original; }
-        Vector3 direction = head.GetComponent<Collider>().bounds.center - original.origin;
-        if (direction.sqrMagnitude > range * range || Vector3.Angle(original.direction, direction) > coneDegrees) return original;
-        Status = "SHOT CORRECTED";
-        return new Ray(original.origin, direction.normalized);
-    }
-    private HitZone FindHead(Camera camera, PlayerController player, float range)
+    private HitZone FindHead(Camera camera, PlayerController player, float limitDegrees)
     {
         HitZone nearest = null;
         float best = float.PositiveInfinity;
@@ -78,7 +100,7 @@ public class AssistStatePublisher : MonoBehaviour
             Vector3 viewport = camera.WorldToViewportPoint(point);
             if (viewport.z <= camera.nearClipPlane || viewport.x < 0 || viewport.x > 1 || viewport.y < 0 || viewport.y > 1) continue;
             Vector3 direction = point - camera.transform.position;
-            if (direction.magnitude > range || Vector3.Angle(camera.transform.forward, direction) > coneDegrees) continue;
+            if (Vector3.Angle(camera.transform.forward, direction) > limitDegrees) continue;
             // Ignore the player's own collider; reject heads occluded by any other surface.
             float distance = direction.magnitude;
             bool blocked = false;
@@ -88,7 +110,8 @@ public class AssistStatePublisher : MonoBehaviour
                 if (player != null && hit.collider.GetComponentInParent<PlayerController>() == player) continue;
                 if (hit.collider.GetComponentInParent<Target>() != target) { blocked = true; break; }
             }
-            if (!blocked && distance < best) { best = distance; nearest = head; }
+            float rank = ProximityAssist ? Vector3.Angle(camera.transform.forward, direction) : distance;
+            if (!blocked && rank < best) { best = rank; nearest = head; }
         }
         return nearest;
     }

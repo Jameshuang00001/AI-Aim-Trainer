@@ -37,15 +37,55 @@ public static class Mode2Build
             if (!assist.Armed) throw new System.Exception("Explicit restart failed");
             assist.Command(false, 3);
             if (assist.Armed) throw new System.Exception("Remote Stop failed");
-            assist.Command(true, 4, "shot");
-            if (!assist.Armed || !assist.ShotCorrection) throw new System.Exception("Shot mode selection failed");
-            assist.Stop(); assist.Command(true, 4, "shot");
-            if (assist.Armed) throw new System.Exception("Shot mode rearmed after Stop");
+            assist.Command(true, 4, "proximity");
+            if (!assist.Armed || !assist.ProximityAssist) throw new System.Exception("Proximity mode selection failed");
+            assist.Stop(); assist.Command(true, 4, "proximity");
+            if (assist.Armed) throw new System.Exception("Proximity mode rearmed after Stop");
             assist.Command(true, 5, "hold");
-            if (!assist.Armed || assist.ShotCorrection) throw new System.Exception("Hold mode selection failed");
-            UnityEngine.Debug.Log("Mode2 safety checks passed");
+            if (!assist.Armed || assist.ProximityAssist) throw new System.Exception("Hold mode selection failed");
+            CheckProximityZone(assist);
+            UnityEngine.Debug.Log("Mode2 safety and proximity-zone checks passed");
         }
         finally { UnityEngine.Object.DestroyImmediate(owner); }
+    }
+    private static void CheckProximityZone(AssistStatePublisher assist)
+    {
+        var cameraObject = new UnityEngine.GameObject("Proximity test camera");
+        var targetObject = new UnityEngine.GameObject("Proximity test target");
+        var wall = UnityEngine.GameObject.CreatePrimitive(UnityEngine.PrimitiveType.Cube);
+        try
+        {
+            var camera = cameraObject.AddComponent<UnityEngine.Camera>();
+            camera.transform.position = new UnityEngine.Vector3(10000,10000,10000);
+            var target = targetObject.AddComponent<Target>();
+            typeof(Target).GetProperty("IsHittable").SetValue(target, true);
+            var collider = targetObject.AddComponent<UnityEngine.SphereCollider>();
+            collider.radius = 0.1f; collider.isTrigger = true;
+            var zone = targetObject.AddComponent<HitZone>();
+            typeof(HitZone).GetField("zone", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(zone, HitZoneType.Head);
+            var find = typeof(AssistStatePublisher).GetMethod("FindHead", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            wall.transform.position = camera.transform.position + new UnityEngine.Vector3(0,0,5);
+            wall.SetActive(false);
+            targetObject.transform.position = camera.transform.position + UnityEngine.Quaternion.Euler(0,2,0) * UnityEngine.Vector3.forward * 10;
+            UnityEngine.Physics.SyncTransforms();
+            if ((HitZone)find.Invoke(assist, new object[] {camera, null, 3f}) != zone)
+                throw new System.Exception("Head inside proximity zone was rejected");
+            if (find.Invoke(assist, new object[] {camera, null, 1f}) != null)
+                throw new System.Exception("Head outside proximity zone was accepted");
+            wall.transform.localScale = new UnityEngine.Vector3(3,3,0.2f); wall.SetActive(true);
+            UnityEngine.Physics.SyncTransforms();
+            if (find.Invoke(assist, new object[] {camera, null, 3f}) != null)
+                throw new System.Exception("Occluded head was accepted");
+            wall.SetActive(false); collider.enabled = false; UnityEngine.Physics.SyncTransforms();
+            if (find.Invoke(assist, new object[] {camera, null, 3f}) != null)
+                throw new System.Exception("Disabled head was accepted");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(cameraObject);
+            UnityEngine.Object.DestroyImmediate(targetObject);
+            UnityEngine.Object.DestroyImmediate(wall);
+        }
     }
     public static void Build()
     {

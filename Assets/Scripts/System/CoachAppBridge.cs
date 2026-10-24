@@ -67,14 +67,14 @@ public class CoachAppBridge : MonoBehaviour
         };
     }
 
-    [Serializable] private class AssistCommand { public bool enabled; public int sequence; public string mode; }
+    [Serializable] private class AssistCommand { public bool enabled; public int sequence; public string mode; public float radius = 3f; }
     private IEnumerator PollAssist()
     {
         while (!shuttingDown)
         {
             var assist = AssistStatePublisher.Instance;
             string status = assist == null ? "OFF" : assist.Status;
-            var request = new HttpRequestMessage(HttpMethod.Get, BaseUrl + "/assist?status=" + Uri.EscapeDataString(status));
+            var request = new HttpRequestMessage(HttpMethod.Get, BaseUrl + "/assist?status=" + Uri.EscapeDataString(status) + "&feedback=" + Uri.EscapeDataString(assist == null ? "" : assist.Feedback));
             request.Headers.Add("X-Coach-Token", token);
             var pending = http.SendAsync(request);
             while (!pending.IsCompleted && !shuttingDown) yield return null;
@@ -92,7 +92,7 @@ public class CoachAppBridge : MonoBehaviour
                             try { command = JsonUtility.FromJson<AssistCommand>(body.Result); }
                             catch (ArgumentException) { }
                             if (command != null && AssistStatePublisher.Instance != null)
-                                AssistStatePublisher.Instance.Command(command.enabled, command.sequence, command.mode);
+                                AssistStatePublisher.Instance.Command(command.enabled, command.sequence, command.mode, command.radius);
                         }
                     }
                 }

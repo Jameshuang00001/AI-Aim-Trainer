@@ -18,6 +18,7 @@ public class SessionJsonLog
         public int misses;
         public float accuracy;
         public float avg_reaction_ms;
+        public AssistStatePublisher.CalibrationSample[] aim_corrections;
     }
 
     [Serializable]
@@ -52,6 +53,7 @@ public class SessionJsonLog
         };
         startTime = Time.realtimeSinceStartupAsDouble;
         shots.Clear();
+        if (AssistStatePublisher.Instance != null) AssistStatePublisher.Instance.ResetCalibration();
     }
 
     public void RegisterShot()
@@ -77,6 +79,8 @@ public class SessionJsonLog
     public string Export(ScoreManager score)
     {
         if (session == null || score == null) return null;
+        session.aim_corrections = AssistStatePublisher.Instance == null ? new AssistStatePublisher.CalibrationSample[0]
+            : AssistStatePublisher.Instance.Calibration.ToArray();
         session.ended_at = DateTime.UtcNow.ToString("O");
         session.shots = score.ShotsFired;
         session.hits = score.Hits;

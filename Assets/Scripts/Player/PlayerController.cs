@@ -56,7 +56,7 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-        if (CursorStateManager.Instance == null || !CursorStateManager.Instance.GameplayInputEnabled) return;
+        if (CursorStateManager.Instance == null || !CursorStateManager.Instance.CanReadGameplayInput) return;
         // Preserve jump/gravity state while paused; do not process menu clicks as input.
         if (SessionManager.Instance != null && SessionManager.Instance.IsPaused) return;
         if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive)

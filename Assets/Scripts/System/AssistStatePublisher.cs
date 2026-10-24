@@ -83,7 +83,7 @@ public class AssistStatePublisher : MonoBehaviour
         var session = SessionManager.Instance;
         var cursor = CursorStateManager.Instance;
         return Armed && Application.isFocused && camera != null && session != null && session.IsSessionActive &&
-            !session.IsPaused && !session.IsSummaryOpen && cursor != null && cursor.GameplayInputEnabled &&
+            !session.IsPaused && !session.IsSummaryOpen && cursor != null && cursor.CanReadGameplayInput &&
             Cursor.lockState == CursorLockMode.Locked && Time.timeScale > 0f;
     }
     private HitZone FindHead(Camera camera, PlayerController player, float limitDegrees)

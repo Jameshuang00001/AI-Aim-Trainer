@@ -32,6 +32,8 @@ SYSTEM_PROMPT = (
     "say the sample size is small and conclusions are tentative. "
     "Strengths: two brief observations supported by exact JSON numbers. "
     "Weaknesses: two brief limitations or issues supported by exact JSON numbers. "
+    "When aim_correction_summary has acquisitions > 0, analyze the correction measurements in Strengths/Weaknesses and Next Drill: cite entry/residual error, applied path, signed bias and settling time when available. "
+    "State units. Settling means residual <= 0.1 degree. Duration includes tracking time, not just travel. Do not infer overshoot from net rotation or claim speed causes skill changes. Empty corrections mean no assist evidence. "
     "If aim_corrections is present, distinguish pre-assist angular error from applied assistance and residual error. Assisted hit statistics are not unaided aim skill. "
     "Do not invent benchmarks, trends, modes, or evidence; when data cannot support an "
     "observation, state the limitation instead. "

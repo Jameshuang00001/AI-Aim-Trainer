@@ -43,6 +43,10 @@ public static class Mode2Build
             if (assist.Armed) throw new System.Exception("Proximity mode rearmed after Stop");
             assist.Command(true, 5, "hold");
             if (!assist.Armed || assist.ProximityAssist) throw new System.Exception("Hold mode selection failed");
+            assist.Command(true, 5, "hold", 3f, 15f);
+            if (assist.AssistSpeed != 15f) throw new System.Exception("Live speed was not applied");
+            assist.Stop(); assist.Command(true, 5, "hold", 3f, 120f);
+            if (assist.Armed) throw new System.Exception("Speed change rearmed stopped assistance");
             CheckProximityZone(assist);
             UnityEngine.Debug.Log("Mode2 safety and proximity-zone checks passed");
         }

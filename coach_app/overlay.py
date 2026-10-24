@@ -67,6 +67,10 @@ class CoachWindow:
         self.radius_text = tk.StringVar(value="Assist zone: 3.0 deg")
         ttk.Label(self.controls, textvariable=self.radius_text).pack(anchor="w")
         ttk.Scale(self.controls, from_=0.5, to=10, variable=self.radius, command=self.radius_changed).pack(fill="x")
+        self.speed = tk.DoubleVar(value=65)
+        self.speed_text = tk.StringVar(value="Assist speed: 65 deg/s")
+        ttk.Label(self.controls, textvariable=self.speed_text).pack(anchor="w")
+        ttk.Scale(self.controls, from_=5, to=180, variable=self.speed, command=self.speed_changed).pack(fill="x")
         ttk.Label(self.controls, text="F8 / ESC stops · Manual firing only").pack()
         ttk.Button(self.controls, text="Start Assist", command=self.start_assist).pack(side="left")
         ttk.Button(self.controls, text="Stop", command=self.stop_mode2).pack(side="left")
@@ -80,6 +84,9 @@ class CoachWindow:
         self.panel.bind("<Escape>", lambda e: self.stop_mode2())
         self.panel.bind("<F8>", lambda e: self.stop_mode2())
         self.poll_id = root.after(100, self.poll_results)
+    def speed_changed(self, value):
+        self.speed_text.set(f"Assist speed: {float(value):.0f} deg/s")
+        if self.server: self.server.assist_speed = float(value)
     def radius_changed(self, value):
         self.radius_text.set(f"Assist zone: {float(value):.1f} deg")
         self.stop_mode2()
@@ -91,6 +98,7 @@ class CoachWindow:
         if self.server:
             self.server.assist_mode = "proximity" if self.assist_kind.get() == "Proximity magnet" else "hold"
             self.server.assist_radius = float(self.radius.get())
+            self.server.assist_speed = float(self.speed.get())
             self.server.assist_sequence += 1
             self.server.assist_enabled = True
     def stop_mode2(self):

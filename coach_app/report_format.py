@@ -38,6 +38,27 @@ def prepare_session(session: dict[str, Any]) -> dict[str, Any]:
                  if isinstance(shot, dict) and shot.get("hit") is True
                  and shot.get("reaction_ms") is not None and number(shot["reaction_ms"]) >= 0]
     prepared["fastest_reaction_ms"] = f"{round(min(reactions))} ms" if reactions else "Unavailable"
+    if isinstance(session.get("aim_corrections"), list):
+        records = [item for item in session["aim_corrections"] if isinstance(item, dict)]
+        settled = [item for item in records if number(item.get("time_to_settle_ms", -1)) >= 0]
+        def mean(items, key):
+            values = []
+            for item in items:
+                try: value = float(item[key])
+                except (KeyError, TypeError, ValueError): continue
+                if math.isfinite(value): values.append(value)
+            return round(sum(values) / len(values), 3) if values else None
+        prepared["aim_correction_summary"] = {
+            "acquisitions": len(records), "settled_acquisitions": len(settled),
+            "mean_entry_error_deg": mean(records, "initial_error_deg"),
+            "mean_residual_deg": mean(records, "remaining_error_deg"),
+            "mean_applied_path_deg": mean(records, "path_length_deg"),
+            "mean_duration_ms": mean(records, "duration_ms"),
+            "mean_time_to_settle_ms": mean(settled, "time_to_settle_ms"),
+            "mean_speed_deg_per_second": mean(records, "speed_deg_per_second"),
+            "mean_signed_yaw_error_deg": mean(records, "initial_yaw_error_deg"),
+            "mean_signed_pitch_error_deg": mean(records, "initial_pitch_error_deg"),
+        }
     return prepared
 
 

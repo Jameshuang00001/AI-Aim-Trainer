@@ -79,6 +79,7 @@ public class SessionJsonLog
     public string Export(ScoreManager score)
     {
         if (session == null || score == null) return null;
+        if (AssistStatePublisher.Instance != null) AssistStatePublisher.Instance.FinishCalibration("session_export");
         session.aim_corrections = AssistStatePublisher.Instance == null ? new AssistStatePublisher.CalibrationSample[0]
             : AssistStatePublisher.Instance.Calibration.ToArray();
         session.ended_at = DateTime.UtcNow.ToString("O");

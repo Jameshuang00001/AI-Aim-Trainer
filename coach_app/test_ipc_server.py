@@ -53,7 +53,7 @@ class IPCTests(unittest.TestCase):
         self.server.assist_enabled = True
         self.server.assist_sequence = 7
         with urlopen(Request(self.url + "/assist?status=ASSISTING", headers={"X-Coach-Token": "test-token"}), timeout=3) as response:
-            self.assertEqual(json.load(response), {"enabled": True, "sequence": 7, "mode": "hold", "radius": 3.0})
+            self.assertEqual(json.load(response), {"enabled": True, "sequence": 7, "mode": "hold", "radius": 3.0, "speed": 65.0})
         self.assertEqual(self.server.assist_status, "ASSISTING")
         for headers in ({}, {"X-Coach-Token": "wrong"}, {"X-Coach-Token": "test-token", "Origin": "https://example.com"}):
             with self.assertRaises(HTTPError) as error:

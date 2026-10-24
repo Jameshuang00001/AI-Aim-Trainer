@@ -67,7 +67,7 @@ public class CoachAppBridge : MonoBehaviour
         };
     }
 
-    [Serializable] private class AssistCommand { public bool enabled; public int sequence; public string mode; public float radius = 3f; }
+    [Serializable] private class AssistCommand { public bool enabled; public int sequence; public string mode; public float radius = 3f; public float speed = 65f; }
     private IEnumerator PollAssist()
     {
         while (!shuttingDown)
@@ -92,7 +92,7 @@ public class CoachAppBridge : MonoBehaviour
                             try { command = JsonUtility.FromJson<AssistCommand>(body.Result); }
                             catch (ArgumentException) { }
                             if (command != null && AssistStatePublisher.Instance != null)
-                                AssistStatePublisher.Instance.Command(command.enabled, command.sequence, command.mode, command.radius);
+                                AssistStatePublisher.Instance.Command(command.enabled, command.sequence, command.mode, command.radius, command.speed);
                         }
                     }
                 }

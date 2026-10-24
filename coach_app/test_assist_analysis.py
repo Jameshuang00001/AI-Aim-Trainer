@@ -1,0 +1,25 @@
+import unittest
+from coach_app.report_format import prepare_session
+from coach_app.nebius_client import SYSTEM_PROMPT
+
+class AssistAnalysisTests(unittest.TestCase):
+    def test_summary_keeps_every_record_and_excludes_unsettled_from_settle_mean(self):
+        records = [dict(initial_error_deg=2, remaining_error_deg=.1, path_length_deg=3, duration_ms=600, time_to_settle_ms=200, speed_deg_per_second=30, initial_yaw_error_deg=-2, initial_pitch_error_deg=1),
+                   dict(initial_error_deg=4, remaining_error_deg=1, path_length_deg=5, duration_ms=800, time_to_settle_ms=-1, speed_deg_per_second=90, initial_yaw_error_deg=2, initial_pitch_error_deg=-3)]
+        prepared=prepare_session(dict(aim_corrections=records))
+        self.assertEqual(len(prepared['aim_corrections']),2)
+        summary=prepared['aim_correction_summary']
+        self.assertEqual(summary['acquisitions'],2)
+        self.assertEqual(summary['settled_acquisitions'],1)
+        self.assertEqual(summary['mean_time_to_settle_ms'],200)
+        self.assertEqual(summary['mean_applied_path_deg'],4)
+        self.assertEqual(summary['mean_speed_deg_per_second'],60)
+        self.assertEqual(summary['mean_signed_yaw_error_deg'],0)
+        self.assertEqual(summary['mean_signed_pitch_error_deg'],-1)
+    def test_empty_session_has_no_fabricated_assist_measurements(self):
+        summary=prepare_session(dict(aim_corrections=[]))['aim_correction_summary']
+        self.assertEqual(summary['acquisitions'],0)
+        self.assertIsNone(summary['mean_entry_error_deg'])
+    def test_analysis_prompt_requires_assist_measurements_and_skill_distinction(self):
+        self.assertIn('aim_correction_summary',SYSTEM_PROMPT)
+        self.assertIn('not unaided aim skill',SYSTEM_PROMPT)

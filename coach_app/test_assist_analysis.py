@@ -52,3 +52,15 @@ class AssistAnalysisTests(unittest.TestCase):
         self.assertIn('do not measure unaided aim', result)
         self.assertNotIn('Mean entry error:', result)
         self.assertEqual(prepare_session(session)['aim_correction_summary']['not_ended_on_target_acquisitions'], 1)
+
+    def test_real_drill_is_not_cut_at_48_words_or_rounded(self):
+        from coach_app.report_format import complete_report
+        drill = ("Keep the same target mode and turn assistance off. Fire twenty deliberate shots, "
+                 "taking time to place the crosshair on the head before each shot. "
+                 "Then compare your unassisted hit rate with this assisted session. "
+                 "This comparison helps separate manual alignment from help supplied by the assistant. "
+                 "Record the result before changing settings.")
+        report = complete_report('Session Summary: Data.\nStrengths: Average gap 0.306 degrees.\nWeaknesses: Manual skill is unmeasured.\nNext Drill: '+drill, {}, require_ai=True)
+        self.assertTrue(report.endswith(drill))
+        self.assertIn('0.306', report)
+        self.assertNotIn('...', report)

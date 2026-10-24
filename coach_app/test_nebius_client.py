@@ -128,5 +128,19 @@ class NebiusClientTests(unittest.TestCase):
             coach.complete_report("Strengths:\n- Evidence", {}, require_ai=True)
 
 
+
+    def test_unfinished_drill_retries_before_acceptance(self):
+        factory = MagicMock()
+        client = factory.return_value.__enter__.return_value
+        client.models.list.return_value = [SimpleNamespace(id=coach.MODEL_PREFERENCES[0])]
+        prefix = "Session Summary: Data.\nStrengths: Evidence limited.\nWeaknesses: Manual skill unmeasured.\nNext Drill: "
+        client.chat.completions.create.side_effect = [
+            SimpleNamespace(choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(content=prefix+"Take 20 shots, then..."))]),
+            SimpleNamespace(choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(content=prefix+"Take 20 unassisted shots and compare accuracy."))])]
+        with patch("coach_app.nebius_client.get_api_key", return_value="mock"), patch.dict("sys.modules", {"openai": SimpleNamespace(OpenAI=factory)}):
+            report = coach.analyze_session({})
+        self.assertEqual(client.chat.completions.create.call_count, 2)
+        self.assertTrue(report.endswith("compare accuracy."))
+
 if __name__ == "__main__":
     unittest.main()

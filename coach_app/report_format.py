@@ -126,12 +126,13 @@ def complete_report(report: str, session: dict[str, Any], require_ai: bool = Fal
         if section == "Session Summary":
             text = summary
         text = re.sub(r"(-?\d+\.\d+)\s*ms\b", lambda m: f"{round(float(m[1]))} ms", text)
-        if section != "Session Summary":
+        if section != "Session Summary" and not require_ai:
             text = re.sub(r"-?\d+\.\d{2,}", lambda m: f"{float(m[0]):.1f}", text)
         text = text.replace("**", "")
-        # Budget each section independently so no required section is cut off.
+        # Real AI reports are length-checked and retried upstream, never cut mid-instruction.
+        # Keep the offline/demo formatter bounded.
         words = text.split()
-        if section != "Session Summary" and len(words) > 48:
+        if not require_ai and section != "Session Summary" and len(words) > 48:
             text = " ".join(words[:47]) + "..."
         output.append(section + ":\n" + text)
     return "\n\n".join(output)

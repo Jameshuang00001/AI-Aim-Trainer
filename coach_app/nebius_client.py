@@ -36,6 +36,13 @@ SYSTEM_PROMPT = (
     "When aim_correction_summary has acquisitions > 0, use its averages to explain whether assistance is doing the final alignment and what the player should practice manually. Do not force every metric into the prose. "
     "Explain technical terms in everyday language: entry error = how far the crosshair was from the head before help; applied path = how much the helper turned the view; residual = how much gap remained when help ended. "
     "Use end_reason evidence to discuss interruptions, but never assume that an interrupted correction proves poor control. Acquisitions are not shots. Use not_ended_on_target_acquisitions directly instead of inventing counts. "
+    "Never infer hand-eye coordination, timing skill, or reliable future hits from assisted results. "
+    "A mean does not establish most, typical, consistent, or the distribution of observations. Describe averages as averages only. "
+    "Do not call an angular error acceptable, good, or poor without a supplied benchmark. No such benchmark is supplied here. "
+    "Do not associate correction records with individual shot reaction times: there is no shot-to-correction link. "
+    "Do not list selected individual targets or numeric threshold subsets; coach from the supplied aggregate measurements. "
+    "The game cannot replay selected historical targets. Suggest available actions only: same target mode, assist on/off, manual shots, and comparison of session results. "
+    "Finish every recommendation with a complete action and comparison. Never end a section with an ellipsis or an unfinished instruction. "
     "Averages cannot establish consistent left/right bias, overshooting, bad sensitivity, or slow reflexes. Reaction time here can include target search and aiming, not just human reaction. "
     "settled_acquisitions counts reaching <=0.1 degree AT LEAST ONCE during tracking, not staying there. "
     "ended_on_target_acquisitions counts END residual <=0.1 degree; mean_residual_deg is the mean END residual. "
@@ -111,15 +118,20 @@ def analyze_session(session_json: dict[str, Any]) -> str:
                 print(f"[coach] Response: finish_reason={reason}, content_chars={len(report)}, "
                       f"reasoning_chars={len(reasoning)}, completion_tokens={getattr(usage, 'completion_tokens', None)}, "
                       f"missing_sections={missing}", flush=True)
-                if not missing and reason != "length":
+                too_long = len(report.split()) > 250
+                unfinished = any(lines and lines[-1].rstrip().endswith(("...", "…"))
+                                 for lines in parse_sections(report).values())
+                if not missing and reason != "length" and not too_long and not unfinished:
                     print("[coach] Complete AI report accepted; no local coaching fallback", flush=True)
                     return complete_report(report, session_json, require_ai=True)
-                cause = ("max_tokens exhausted (response truncated)" if reason == "length" else
+                cause = ("report exceeds 250 words; shorten using complete sentences" if too_long else
+                         "report ends with an unfinished ellipsis" if unfinished else
+                         "max_tokens exhausted (response truncated)" if reason == "length" else
                          "empty final content (possibly reasoning-only response)" if not report.strip() else
                          "response did not follow the required heading/content format")
                 print(f"[coach] Incomplete AI response: {cause}", flush=True)
                 if attempt == 1:
-                    messages.append({"role": "user", "content": "Return a complete final report now, without reasoning text. Use all four exact headings with content, under 250 words."})
+                    messages.append({"role": "user", "content": "Return a complete final report now, without reasoning text. Use all four exact headings with content, under 250 words. Finish every sentence, including the drill. Explain only supported aggregate evidence; no skill diagnosis, benchmarks, individual-target replay or shot/correction matching."})
                 else:
                     raise AnalysisError(f"Nebius report incomplete after retry: {cause}. Missing sections: " +
                                         (", ".join(missing) or "none, but output was truncated") + ". See Terminal diagnostics.")

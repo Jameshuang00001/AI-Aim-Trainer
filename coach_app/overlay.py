@@ -78,9 +78,14 @@ class CoachWindow:
         ttk.Label(self.panel, textvariable=self.status, wraplength=450).pack(fill="x", padx=12, pady=8)
         self.calibration = tk.StringVar(value="No corrections yet")
         ttk.Label(self.panel, textvariable=self.calibration, wraplength=440).pack(fill="x", padx=16, pady=6)
-        self.report = tk.Text(self.panel, wrap="word", state="disabled", bg="#1a2633", fg="#ecf2f7",
+        self.report_frame = ttk.Frame(self.panel)
+        self.report_frame.pack(fill="both", expand=True, padx=12, pady=8)
+        self.report = tk.Text(self.report_frame, wrap="word", state="disabled", bg="#1a2633", fg="#ecf2f7",
                               font=("Helvetica", 12), padx=14, pady=14, relief="flat")
-        self.report.pack(fill="both", expand=True, padx=12, pady=8)
+        scrollbar = ttk.Scrollbar(self.report_frame, orient="vertical", command=self.report.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.report.configure(yscrollcommand=scrollbar.set)
+        self.report.pack(side="left", fill="both", expand=True)
         self.panel.bind("<Escape>", lambda e: self.stop_mode2())
         self.panel.bind("<F8>", lambda e: self.stop_mode2())
         self.poll_id = root.after(100, self.poll_results)
@@ -92,7 +97,7 @@ class CoachWindow:
         self.stop_mode2()
     def change_mode(self, value):
         self.stop_mode2()
-        if value == "Mode 2 Unity Assist": self.controls.pack(fill="x", padx=12, before=self.report)
+        if value == "Mode 2 Unity Assist": self.controls.pack(fill="x", padx=12, before=self.report_frame)
         else: self.controls.pack_forget()
     def start_assist(self):
         if self.server:

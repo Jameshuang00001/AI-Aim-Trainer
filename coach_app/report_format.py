@@ -40,7 +40,14 @@ def prepare_session(session: dict[str, Any]) -> dict[str, Any]:
     prepared["fastest_reaction_ms"] = f"{round(min(reactions))} ms" if reactions else "Unavailable"
     if isinstance(session.get("aim_corrections"), list):
         records = [item for item in session["aim_corrections"] if isinstance(item, dict)]
-        settled = [item for item in records if number(item.get("time_to_settle_ms", -1)) >= 0]
+        def finite(item, key):
+            try: value = float(item[key])
+            except (KeyError, TypeError, ValueError): return None
+            return value if math.isfinite(value) else None
+        settled = [item for item in records
+                   if (value := finite(item, "time_to_settle_ms")) is not None and value >= 0]
+        ended_on_target = [item for item in records
+                           if (value := finite(item, "remaining_error_deg")) is not None and 0 <= value <= 0.1]
         def mean(items, key):
             values = []
             for item in items:
@@ -50,6 +57,7 @@ def prepare_session(session: dict[str, Any]) -> dict[str, Any]:
             return round(sum(values) / len(values), 3) if values else None
         prepared["aim_correction_summary"] = {
             "acquisitions": len(records), "settled_acquisitions": len(settled),
+            "ended_on_target_acquisitions": len(ended_on_target),
             "mean_entry_error_deg": mean(records, "initial_error_deg"),
             "mean_residual_deg": mean(records, "remaining_error_deg"),
             "mean_applied_path_deg": mean(records, "path_length_deg"),
@@ -89,6 +97,14 @@ def complete_report(report: str, session: dict[str, Any], require_ai: bool = Fal
     )
     if data["shots"] < 10:
         summary += "\n- Small sample size; conclusions are tentative."
+    correction = data.get("aim_correction_summary", {})
+    if correction.get("acquisitions"):
+        summary += (f"\n- Assist: {correction['acquisitions']} acquisitions; "
+                    f"{correction['settled_acquisitions']} reached <=0.1 deg at least once; "
+                    f"{correction['ended_on_target_acquisitions']} ended <=0.1 deg.")
+        residual = correction["mean_residual_deg"]
+        if residual is not None:
+            summary += f"\n- Mean end residual: {residual:.2f} deg. Assisted results."
     defaults = {
         "Session Summary": summary,
         "Strengths": f"- Local fallback: {data['hits']} valid hits recorded.",
@@ -104,14 +120,14 @@ def complete_report(report: str, session: dict[str, Any], require_ai: bool = Fal
     for section in SECTIONS:
         text = "\n".join(content[section]) or defaults[section]
         # The measured summary is always built locally, avoiding precision drift.
-        if section == "Session Summary" and not require_ai:
+        if section == "Session Summary":
             text = summary
         text = re.sub(r"(-?\d+\.\d+)\s*ms\b", lambda m: f"{round(float(m[1]))} ms", text)
         text = re.sub(r"-?\d+\.\d{2,}", lambda m: f"{float(m[0]):.1f}", text)
         text = text.replace("**", "")
         # Budget each section independently so no required section is cut off.
         words = text.split()
-        if len(words) > 48:
+        if section != "Session Summary" and len(words) > 48:
             text = " ".join(words[:47]) + "..."
         output.append(section + ":\n" + text)
     return "\n\n".join(output)

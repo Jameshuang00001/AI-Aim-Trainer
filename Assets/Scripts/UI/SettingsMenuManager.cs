@@ -159,7 +159,8 @@ public class SettingsMenuManager : MonoBehaviour
         if (index < 0 || index >= modeNames.Length) return;
         if (GameModeManager.Instance == null || GameModeManager.Instance.CurrentMode == (AimTrainingMode)index) return;
         GameModeManager.Instance.SetMode((AimTrainingMode)index);
-        if (SessionManager.Instance != null) SessionManager.Instance.ResetSessionData();
+        // SetMode already respawned targets; reset only session counters here.
+        if (SessionManager.Instance != null) SessionManager.Instance.ResetSessionData(false);
         RefreshControls();
     }
 

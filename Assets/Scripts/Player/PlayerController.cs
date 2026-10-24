@@ -31,9 +31,7 @@ public class PlayerController : MonoBehaviour
     private float lastJumpPressedTime = float.NegativeInfinity;
     private float cameraPitch;
     public float MouseSensitivity => mouseSensitivity;
-    // Read-only observations for temporary input diagnostics; not an input source.
-    public Vector2 LastLookInput { get; private set; }
-    public int LastLookInputFrame { get; private set; } = -1;
+    private AssistStatePublisher assist;
     public Camera PlayerCamera => playerCamera;
 
     public void SetMouseSensitivity(float value)
@@ -44,7 +42,8 @@ public class PlayerController : MonoBehaviour
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
-        if (GetComponent<AssistStatePublisher>() == null) gameObject.AddComponent<AssistStatePublisher>();
+        assist = GetComponent<AssistStatePublisher>();
+        if (assist == null) assist = gameObject.AddComponent<AssistStatePublisher>();
         // Existing player scenes get the safety net without needing Inspector rewiring.
         if (GetComponent<PlayerBoundsReset>() == null) gameObject.AddComponent<PlayerBoundsReset>();
 
@@ -66,15 +65,13 @@ public class PlayerController : MonoBehaviour
         }
         HandleMouseLook();
         HandleMovement();
-        GetComponent<AssistStatePublisher>().ApplyAssist(this);
+        assist.ApplyAssist(this);
     }
 
     private void HandleMouseLook()
     {
-        LastLookInput = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
-        LastLookInputFrame = Time.frameCount;
-        float mouseX = LastLookInput.x * mouseSensitivity;
-        float mouseY = LastLookInput.y * mouseSensitivity;
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
+        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
 
         transform.Rotate(Vector3.up * mouseX);
 

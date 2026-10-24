@@ -45,7 +45,7 @@ public class AssistStatePublisher : MonoBehaviour
     private int lastCommand = -1;
     private float leaseUntil;
     private bool remote;
-    private void Awake() { Instance = this; }
+    private void OnEnable() { Instance = this; }
     public void Command(bool enabled, int sequence, string mode = "hold", float radius = 3f, float speed = 65f)
     {
         if (!enabled) { if (remote || (lastCommand >= 0 && sequence != lastCommand)) Stop(); lastCommand = sequence; return; }
@@ -58,7 +58,14 @@ public class AssistStatePublisher : MonoBehaviour
     public void Stop() { Armed = false; Status = "OFF"; FinishCalibration("stopped"); }
     private void Update()
     {
-        if (Armed && !ProximityAssist && !Input.GetMouseButton(1)) Status = "READY";
+        // Player Update can return early on pause/focus loss; close measurements here too.
+        var cursor = CursorStateManager.Instance;
+        if (cursor == null || !cursor.CanReadGameplayInput ||
+            (!ProximityAssist && !Input.GetMouseButton(1)))
+        {
+            FinishCalibration("input_gate_or_release");
+            if (Armed) Status = "READY";
+        }
         if (Input.GetKey(KeyCode.F8) || Input.GetKey(KeyCode.Escape) ||
             (remote && Time.realtimeSinceStartup > leaseUntil)) Stop();
     }
@@ -83,7 +90,7 @@ public class AssistStatePublisher : MonoBehaviour
                 mode = ProximityAssist ? "proximity" : "hold", started_at_utc = DateTime.UtcNow.ToString("O"),
                 speed_deg_per_second = maxDegreesPerSecond, zone_radius_deg = ProximityAssist ? proximityDegrees : coneDegrees,
                 end_reason = "tracking", initial_yaw_error_deg = error.x,
-                initial_pitch_error_deg = error.y, initial_error_deg = error.magnitude };
+                initial_pitch_error_deg = error.y, initial_error_deg = Vector3.Angle(camera.transform.forward, aim) };
             Calibration.Add(activeSample);
         }
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
@@ -124,9 +131,13 @@ public class AssistStatePublisher : MonoBehaviour
             Vector3 viewport = camera.WorldToViewportPoint(point);
             if (viewport.z <= camera.nearClipPlane || viewport.x < 0 || viewport.x > 1 || viewport.y < 0 || viewport.y > 1) continue;
             Vector3 direction = point - camera.transform.position;
-            if (Vector3.Angle(camera.transform.forward, direction) > limitDegrees) continue;
+            float angle = Vector3.Angle(camera.transform.forward, direction);
+            if (angle > limitDegrees) continue;
             // Ignore the player's own collider; reject heads occluded by any other surface.
             float distance = direction.magnitude;
+            float rank = ProximityAssist ? angle : distance;
+            // A worse candidate cannot win, so avoid its physics query.
+            if (rank >= best) continue;
             bool blocked = false;
             foreach (var hit in Physics.RaycastAll(camera.transform.position, direction.normalized, distance,
                 ~0, QueryTriggerInteraction.Collide))
@@ -134,7 +145,6 @@ public class AssistStatePublisher : MonoBehaviour
                 if (player != null && hit.collider.GetComponentInParent<PlayerController>() == player) continue;
                 if (hit.collider.GetComponentInParent<Target>() != target) { blocked = true; break; }
             }
-            float rank = ProximityAssist ? Vector3.Angle(camera.transform.forward, direction) : distance;
             if (!blocked && rank < best) { best = rank; nearest = head; }
         }
         return nearest;

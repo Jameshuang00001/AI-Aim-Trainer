@@ -23,3 +23,22 @@ class AssistAnalysisTests(unittest.TestCase):
     def test_analysis_prompt_requires_assist_measurements_and_skill_distinction(self):
         self.assertIn('aim_correction_summary',SYSTEM_PROMPT)
         self.assertIn('not unaided aim skill',SYSTEM_PROMPT)
+
+    def test_first_settle_is_distinct_from_end_residual_and_invalid_values(self):
+        records = [dict(time_to_settle_ms=100, remaining_error_deg=3.4),
+                   dict(time_to_settle_ms=None, remaining_error_deg=.05),
+                   dict(time_to_settle_ms=float('nan'), remaining_error_deg=1)]
+        summary = prepare_session(dict(aim_corrections=records))['aim_correction_summary']
+        self.assertEqual(summary['settled_acquisitions'], 1)
+        self.assertEqual(summary['ended_on_target_acquisitions'], 1)
+        self.assertEqual(summary['mean_time_to_settle_ms'], 100)
+
+    def test_measured_summary_replaces_invented_ai_summary(self):
+        from coach_app.report_format import complete_report
+        report = complete_report('Session Summary: invented accuracy 100%\nStrengths: Evidence limited.\nWeaknesses: Tracking can move.\nNext Drill: Take 20 shots.',
+            dict(shots=135, hits=121, misses=14, accuracy=89.6296, avg_reaction_ms=839,
+                 aim_corrections=[dict(time_to_settle_ms=200, remaining_error_deg=3.4)]), require_ai=True)
+        self.assertNotIn('invented', report)
+        self.assertIn('89.6%', report)
+        self.assertIn('1 reached <=0.1 deg at least once; 0 ended <=0.1 deg', report)
+        self.assertIn('Mean end residual: 3.4 deg', report)

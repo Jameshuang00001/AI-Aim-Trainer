@@ -185,7 +185,6 @@ public class UIManager : MonoBehaviour
     public void ShowHitFeedback(float reactionTime)
     {
         ClearMissFeedback();
-        Debug.Log($"Hit feedback triggered. Reaction time: {reactionTime:F3}s");
 
         if (hitFeedbackText == null)
         {
@@ -381,7 +380,7 @@ public class UIManager : MonoBehaviour
 
         crosshairText = crosshairObject.GetComponent<Text>();
         crosshairText.text = "+";
-        crosshairText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        crosshairText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         crosshairText.fontSize = 24;
         crosshairText.alignment = TextAnchor.MiddleCenter;
         crosshairText.alignByGeometry = true;

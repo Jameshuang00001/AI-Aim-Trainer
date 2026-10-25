@@ -72,6 +72,7 @@ class Handler(BaseHTTPRequestHandler):
         available, error = (False, "") if startup else credential_status()
         self.reply(200, {"app": "aim-trainer-coach", "protocol": 1,
                          "process_id": os.getpid(), "launch_id": self.server.launch_id,
+                         "unity_connected": time.monotonic() - self.server.assist_seen < 1.0,
                          "companion_visible": self.server.companion_visible,
                          "companion_floating": self.server.companion_floating,
                          "api_key_checked": not startup, "api_key_available": available, "credential_error": error})

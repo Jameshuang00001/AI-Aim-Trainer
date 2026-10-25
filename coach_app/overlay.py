@@ -3,9 +3,10 @@ import queue
 import threading
 import time
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, simpledialog, messagebox
 from pathlib import Path
 from coach_app.nebius_client import analyze_session
+from coach_app.credentials import CredentialError, save_api_key
 from coach_app.report_format import prepare_session, measured_report
 from coach_app.macos_window import FloatingWindowPolicy
 from coach_app.session_reader import read_session, select_session_file, find_latest_session
@@ -51,6 +52,7 @@ class CoachWindow:
         row = ttk.Frame(self.panel); row.pack(fill="x", padx=12)
         ttk.Button(row, text="Open session", command=self.open_file).pack(side="left")
         ttk.Button(row, text="Latest session", command=self.load_latest).pack(side="left")
+        ttk.Button(row, text="API key", command=self.configure_api_key).pack(side="left")
         stats = ttk.Frame(self.panel); stats.pack(fill="x", padx=16, pady=8)
         self.stat_values = {}
         for index, name in enumerate(("Shots", "Hits", "Accuracy", "Avg reaction")):
@@ -89,6 +91,23 @@ class CoachWindow:
         self.panel.bind("<Escape>", lambda e: self.stop_mode2())
         self.panel.bind("<F8>", lambda e: self.stop_mode2())
         self.poll_id = root.after(100, self.poll_results)
+    def configure_api_key(self):
+        key = simpledialog.askstring(
+            "Nebius API key", "Enter your own Nebius API key.\n"
+            "Saved in this Mac's login Keychain, outside the app.\n"
+            "Saving replaces the Coach key on this Mac. Cancel keeps it unchanged.",
+            parent=self.panel, show="*")
+        if key is None:
+            return
+        try:
+            save_api_key(key)
+        except CredentialError as error:
+            messagebox.showerror("API key", str(error), parent=self.panel)
+        else:
+            messagebox.showinfo("API key", "Saved to this Mac's Keychain. Open a session to request AI advice.", parent=self.panel)
+        finally:
+            key = None
+
     def speed_changed(self, value):
         self.speed_text.set(f"Assist speed: {float(value):.0f} deg/s")
         if self.server: self.server.assist_speed = float(value)

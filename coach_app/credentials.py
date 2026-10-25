@@ -10,7 +10,7 @@ SERVICE = "AI Aim Trainer Coach"
 ACCOUNT = "NEBIUS_API_KEY"
 MISSING_KEY_MESSAGE = (
     "NEBIUS_API_KEY is not set and no macOS Keychain key is available. "
-    "Run .venv/bin/python -m coach_app.credentials setup from the project folder."
+    "Click API key in Coach to save your own Nebius key on this Mac."
 )
 
 

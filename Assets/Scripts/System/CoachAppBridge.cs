@@ -203,6 +203,8 @@ public class CoachAppBridge : MonoBehaviour
 
     private void LaunchCoach()
     {
+        string embeddedCoach = Path.Combine(Application.dataPath, "Helpers", "Coach.app");
+        bool embedded = !Application.isEditor && File.Exists(Path.Combine(embeddedCoach, "Contents", "MacOS", "Coach"));
         string root = coachProjectDirectory;
         if (string.IsNullOrWhiteSpace(root)) root = Environment.GetEnvironmentVariable("COACH_APP_ROOT");
         if (string.IsNullOrWhiteSpace(root)) root = Application.isEditor
@@ -224,16 +226,17 @@ public class CoachAppBridge : MonoBehaviour
                 if (File.Exists(Path.Combine(candidate.FullName, "coach_app", "main.py")))
                 { root = candidate.FullName; break; }
         }
+        if (embedded) root = Application.dataPath;
         string python = Path.Combine(root, ".venv", "bin", "python");
         string main = Path.Combine(root, "coach_app", "main.py");
-        string appPath = packagedCoachPath;
+        string appPath = embedded ? embeddedCoach : packagedCoachPath;
         bool macOS = Application.platform == RuntimePlatform.OSXEditor || Application.platform == RuntimePlatform.OSXPlayer;
         if (macOS && string.IsNullOrWhiteSpace(appPath))
         {
             appPath = Path.Combine(root, "dist", "Coach.app");
             if (!Directory.Exists(appPath)) appPath = "/Applications/Coach.app";
         }
-        bool useApp = !File.Exists(main) && macOS && !string.IsNullOrWhiteSpace(appPath) &&
+        bool useApp = (embedded || !File.Exists(main)) && macOS && !string.IsNullOrWhiteSpace(appPath) &&
             File.Exists(Path.Combine(appPath, "Contents", "MacOS", "Coach"));
         if (!useApp && (!File.Exists(python) || !File.Exists(main)))
         {

@@ -103,8 +103,10 @@ public static class Mode2Build
     public static void Build()
     {
         CheckSafety();
+        PlayerSettings.resizableWindow = true;
         System.IO.Directory.CreateDirectory("Assets/StreamingAssets");
-        System.IO.File.WriteAllText("Assets/StreamingAssets/coach-root.txt", System.IO.Directory.GetCurrentDirectory());
+        // Portable builds must not contain a developer-machine path.
+        System.IO.File.WriteAllText("Assets/StreamingAssets/coach-root.txt", "");
         AssetDatabase.Refresh();
         var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
         if (scenes.Length == 0) scenes = new[] { "Assets/Scenes/SampleScene.unity" };

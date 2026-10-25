@@ -93,7 +93,32 @@ public class SettingsMenuManager : MonoBehaviour
             sensitivitySlider.wholeNumbers = false;
             sensitivitySlider.onValueChanged.AddListener(SetSensitivity);
         }
+        ConfigureResponsiveCanvas();
         HidePanel();
+    }
+
+    private void ConfigureResponsiveCanvas()
+    {
+        // Scale only Settings: preserve the user's HUD, start screen and scene layout.
+        var panel = settingsPanel.transform as RectTransform;
+        if (panel == null) return;
+        var canvas = settingsPanel.GetComponentInParent<Canvas>();
+        if (canvas == null || canvas.gameObject.name != "SettingsCanvas")
+        {
+            var owner = new GameObject("SettingsCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            canvas = owner.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 100;
+            panel.SetParent(owner.transform, false);
+        }
+        var scaler = canvas.GetComponent<CanvasScaler>();
+        if (scaler == null) scaler = canvas.gameObject.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(800f, 750f);
+        // Fit both dimensions, including narrow windows, without clipping controls.
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+        panel.localScale = Vector3.one;
+        panel.anchoredPosition = Vector2.zero;
     }
 
     public void ToggleSettings()

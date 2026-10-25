@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
 from coach_app.nebius_client import analyze_session
-from coach_app.report_format import prepare_session
+from coach_app.report_format import prepare_session, measured_report
 from coach_app.macos_window import FloatingWindowPolicy
 from coach_app.session_reader import read_session, select_session_file, find_latest_session
 
@@ -133,7 +133,7 @@ class CoachWindow:
         self.status.set("Analyzing session...")
         def worker():
             try: result = analyze_session(session)
-            except Exception as error: result = str(error)
+            except Exception as error: result = measured_report(session) + "\n\nAnalysis unavailable: " + str(error)
             self.results.put(result)
         threading.Thread(target=worker, daemon=True).start()
     def poll_results(self):

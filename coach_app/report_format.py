@@ -136,3 +136,57 @@ def complete_report(report: str, session: dict[str, Any], require_ai: bool = Fal
             text = " ".join(words[:47]) + "..."
         output.append(section + ":\n" + text)
     return "\n\n".join(output)
+
+
+# Only these drills can reach the UI. AI selects an eligible ID; it cannot write claims.
+def allowed_drills(session):
+    data = prepare_session(session)
+    drills = {"baseline": "Keep the same target mode and sensitivity. Turn assistance off and take 20 deliberate shots. Record accuracy and average target-to-hit time as a manual baseline; this time includes finding and aiming at targets."}
+    if data.get("aim_correction_summary", {}).get("acquisitions", 0):
+        drills["assist_comparison"] = "Keep the same target mode and sensitivity. Start a fresh session with assistance off and take 20 shots. Compare hit rate with this assisted session to see how results differ without help. Do not compare correction errors: they are not recorded when assistance is off."
+    if data["misses"] > 0:
+        drills["deliberate_shots"] = "Keep the same target mode and sensitivity, turn assistance off, and take 20 single shots. Place the crosshair on the head before each click. Compare misses and average target-to-hit time with this session; this tests a more deliberate approach, not a diagnosed cause of the misses."
+    return drills
+
+
+def checked_drill(response, session):
+    import json
+    choice = json.loads(response)
+    if not isinstance(choice, dict) or set(choice) != {"drill_id"}:
+        raise ValueError("Expected only drill_id")
+    drill_id = choice["drill_id"]
+    if not isinstance(drill_id, str) or drill_id not in allowed_drills(session):
+        raise ValueError("Unsupported drill or missing session evidence")
+    return drill_id
+
+
+def measured_report(session, drill_id=None):
+    """All prose is locally grounded; no free-form model text is rendered."""
+    data = prepare_session(session)
+    # Reuse only the deterministic summary, never model-supplied interpretation.
+    summary = parse_sections(complete_report("", session))["Session Summary"]
+    correction = data.get("aim_correction_summary", {})
+    count = correction.get("acquisitions", 0)
+    if count:
+        entry, end = correction["mean_entry_error_deg"], correction["mean_residual_deg"]
+        if entry is not None and end is not None:
+            relation = "smaller" if end < entry else "larger" if end > entry else "unchanged"
+            observation = (f"The average gap from the head was {relation} when assistance ended "
+                           f"({entry:.3f} to {end:.3f} deg). This describes assisted alignment, not improvement in manual skill.")
+        else:
+            observation = "Assistance was recorded, but some angle measurements are missing; its before-and-after gap cannot be compared."
+        limitation = ("The remaining gap is measured when each correction stops, not at each shot. "
+                      "It cannot tell us whether you overshot, stopped early, or followed a moving target. "
+                      "These averages do not establish consistent aim or a good/bad skill rating.")
+    else:
+        observation = (f"You hit {data['hits']} of {data['shots']} shots. This records this session's outcome, "
+                       "not improvement over earlier sessions.")
+        limitation = ("No correction measurements are available. Hits and misses alone cannot explain aim direction or the cause of a miss. "
+                      "Average target-to-hit time includes searching and aiming; it is not a pure reflex test.")
+    drills = allowed_drills(session)
+    if drill_id is not None and drill_id not in drills:
+        raise ValueError("Drill does not match session evidence")
+    drill = ("AI-selected, program-checked exercise: " + drills[drill_id] if drill_id else
+             "No validated AI exercise is available. The measurements and explanations above are still available; retry analysis for a suggestion.")
+    return ("Session Summary:\n" + "\n".join(summary) + "\n\nWhat the data shows:\n" + observation +
+            "\n\nWhat it cannot tell us:\n" + limitation + "\n\nNext Drill:\n" + drill)

@@ -31,6 +31,8 @@ public class PlayerController : MonoBehaviour
     private float lastJumpPressedTime = float.NegativeInfinity;
     private float cameraPitch;
     public float MouseSensitivity => mouseSensitivity;
+    private AssistStatePublisher assist;
+    public Camera PlayerCamera => playerCamera;
 
     public void SetMouseSensitivity(float value)
     {
@@ -40,6 +42,8 @@ public class PlayerController : MonoBehaviour
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+        assist = GetComponent<AssistStatePublisher>();
+        if (assist == null) assist = gameObject.AddComponent<AssistStatePublisher>();
         // Existing player scenes get the safety net without needing Inspector rewiring.
         if (GetComponent<PlayerBoundsReset>() == null) gameObject.AddComponent<PlayerBoundsReset>();
 
@@ -51,7 +55,7 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-        if (CursorStateManager.Instance == null || !CursorStateManager.Instance.GameplayInputEnabled) return;
+        if (CursorStateManager.Instance == null || !CursorStateManager.Instance.CanReadGameplayInput) return;
         // Preserve jump/gravity state while paused; do not process menu clicks as input.
         if (SessionManager.Instance != null && SessionManager.Instance.IsPaused) return;
         if (SessionManager.Instance == null || !SessionManager.Instance.IsSessionActive)
@@ -61,6 +65,7 @@ public class PlayerController : MonoBehaviour
         }
         HandleMouseLook();
         HandleMovement();
+        assist.ApplyAssist(this);
     }
 
     private void HandleMouseLook()
@@ -77,6 +82,13 @@ public class PlayerController : MonoBehaviour
         {
             playerCamera.transform.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
         }
+    }
+
+    public void ApplyAssistRotation(Vector2 degrees)
+    {
+        transform.Rotate(Vector3.up * degrees.x);
+        cameraPitch = Mathf.Clamp(cameraPitch + degrees.y, -verticalLookLimit, verticalLookLimit);
+        playerCamera.transform.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
     }
 
     public void ResetMovementVelocity()

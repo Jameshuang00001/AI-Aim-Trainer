@@ -1,15 +1,14 @@
-[Ll]ibrary/
-[Tt]emp/
-[Oo]bj/
-[Bb]uild/
-[Bb]uilds/
-[Ll]ogs/
-[Uu]ser[Ss]ettings/
-
-.vs/
-.vscode/
-.idea/
-
+# Unity-generated files and per-user settings
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/.vs/
+/.vscode/
+/.idea/
 *.csproj
 *.sln
 *.user
@@ -18,15 +17,32 @@
 *.svd
 *.pdb
 *.mdb
-
 .DS_Store
 Thumbs.db
-
 sysinfo.txt
 
-# Python environments, caches, and local credentials.
+# Python runtime, caches and local credentials
 .venv/
 __pycache__/
-*.pyc
+*.py[cod]
 .env
 .env.*
+*.keychain
+*.keychain-db
+*.p12
+*.pfx
+
+# Generated release artifacts and local session data
+/dist/
+/outputs/
+*.app/
+/session_logs/
+/coach_app/session_logs/
+
+# Retired visual-assist experiments and local training data
+/legacy_mode2/
+/yolo_dev/
+/datasets/
+/runs/
+*.pt
+*.onnx

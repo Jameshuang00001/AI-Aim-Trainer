@@ -27,6 +27,7 @@ public class SettingsMenuManager : MonoBehaviour
     private readonly string[] modeNames = { "Static Targets", "Moving Targets", "Flick Targets", "Reaction Targets" };
     private Font font;
     public bool IsSettingsOpen => settingsPanel != null && settingsPanel.activeSelf;
+    public bool IsSettingsPanelVisible => settingsPanel != null && settingsPanel.activeInHierarchy;
 
     private void Update()
     {
@@ -92,7 +93,32 @@ public class SettingsMenuManager : MonoBehaviour
             sensitivitySlider.wholeNumbers = false;
             sensitivitySlider.onValueChanged.AddListener(SetSensitivity);
         }
+        ConfigureResponsiveCanvas();
         HidePanel();
+    }
+
+    private void ConfigureResponsiveCanvas()
+    {
+        // Scale only Settings: preserve the user's HUD, start screen and scene layout.
+        var panel = settingsPanel.transform as RectTransform;
+        if (panel == null) return;
+        var canvas = settingsPanel.GetComponentInParent<Canvas>();
+        if (canvas == null || canvas.gameObject.name != "SettingsCanvas")
+        {
+            var owner = new GameObject("SettingsCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            canvas = owner.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 100;
+            panel.SetParent(owner.transform, false);
+        }
+        var scaler = canvas.GetComponent<CanvasScaler>();
+        if (scaler == null) scaler = canvas.gameObject.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(800f, 750f);
+        // Fit both dimensions, including narrow windows, without clipping controls.
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+        panel.localScale = Vector3.one;
+        panel.anchoredPosition = Vector2.zero;
     }
 
     public void ToggleSettings()
@@ -158,7 +184,8 @@ public class SettingsMenuManager : MonoBehaviour
         if (index < 0 || index >= modeNames.Length) return;
         if (GameModeManager.Instance == null || GameModeManager.Instance.CurrentMode == (AimTrainingMode)index) return;
         GameModeManager.Instance.SetMode((AimTrainingMode)index);
-        if (SessionManager.Instance != null) SessionManager.Instance.ResetSessionData();
+        // SetMode already respawned targets; reset only session counters here.
+        if (SessionManager.Instance != null) SessionManager.Instance.ResetSessionData(false);
         RefreshControls();
     }
 

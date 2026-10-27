@@ -8,6 +8,22 @@ public class CursorStateManager : MonoBehaviour
     public static CursorStateManager Instance { get; private set; }
     public bool GameplayInputEnabled { get; private set; }
     private Coroutine relockRoutine;
+    private int inputResumeAfterFrame = -1;
+    public bool CanReadGameplayInput => GameplayInputEnabled && Application.isFocused &&
+        IsGameViewFocused && Cursor.lockState == CursorLockMode.Locked &&
+        Time.frameCount > inputResumeAfterFrame;
+    private static bool IsGameViewFocused
+    {
+        get
+        {
+#if UNITY_EDITOR
+            var window = UnityEditor.EditorWindow.focusedWindow;
+            return window != null && window.GetType().Name == "GameView";
+#else
+            return true;
+#endif
+        }
+    }
 
     public static CursorStateManager GetOrCreate()
     {
@@ -46,24 +62,29 @@ public class CursorStateManager : MonoBehaviour
         if (relockRoutine != null) StopCoroutine(relockRoutine);
         relockRoutine = null;
         if (SessionManager.Instance != null) SessionManager.Instance.SetPaused(true);
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        if (Cursor.lockState != CursorLockMode.None) Cursor.lockState = CursorLockMode.None;
+        if (!Cursor.visible) Cursor.visible = true;
         Debug.Log("Cursor -> Menu unlocked");
     }
 
     private void ApplyGameplayLock()
     {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // Avoid repeatedly asking the native Editor to warp/lock an already locked cursor.
+        if (Cursor.lockState != CursorLockMode.Locked)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            // Discard the transition frame's potentially recentered mouse delta.
+            inputResumeAfterFrame = Time.frameCount;
+        }
+        if (Cursor.visible) Cursor.visible = false;
     }
 
     private IEnumerator RelockCursorNextFrame()
     {
         // Runs even at timeScale zero; cancels if another menu opens meanwhile.
         yield return null;
-        if (GameplayInputEnabled)
+        if (GameplayInputEnabled && Application.isFocused && IsGameViewFocused)
         {
-            FocusEditorGameView();
             ApplyGameplayLock();
         }
         relockRoutine = null;
@@ -71,9 +92,13 @@ public class CursorStateManager : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!Application.isFocused) return;
+        if (!Application.isFocused || !IsGameViewFocused) return;
         if (GameplayInputEnabled) ApplyGameplayLock();
-        else { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
+        else
+        {
+            if (Cursor.lockState != CursorLockMode.None) Cursor.lockState = CursorLockMode.None;
+            if (!Cursor.visible) Cursor.visible = true;
+        }
     }
 
     private void FocusEditorGameView()
@@ -92,7 +117,8 @@ public class CursorStateManager : MonoBehaviour
 
     private void OnApplicationFocus(bool focused)
     {
-        if (focused && GameplayInputEnabled) ApplyGameplayLock();
+        inputResumeAfterFrame = Time.frameCount;
+        if (focused && GameplayInputEnabled && IsGameViewFocused) ApplyGameplayLock();
     }
 
     private void OnDestroy()

@@ -1,4 +1,4 @@
-"""Event-driven native window policy; no activation, global hooks, or polling."""
+"""Event-driven floating level. Keyboard activation only on explicit input clicks."""
 
 import sys
 import threading
@@ -30,6 +30,17 @@ class FloatingWindowPolicy:
         if self.pending is None:
             self.pending = self.root.after_idle(self.apply)
 
+    def focus_for_input(self, widget):
+        # Never called by map/deactivation/polling/collapse. This is an explicit
+        # user click on an editable control, not an attempt to take Unity focus.
+        self.apply()
+        if self.appkit is not None and self.window is not None:
+            if self.window.canBecomeKeyWindow():
+                self.appkit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+                self.window.makeKeyAndOrderFront_(None)
+        self.root.focus_force()
+        widget.focus_set()
+
     def apply(self) -> None:
         self.pending = None
         if self.appkit is None or not self.root.winfo_exists():
@@ -43,7 +54,13 @@ class FloatingWindowPolicy:
         matches = [item for item in windows if str(item.title()) == self.root.title()]
         # Tk can retain closed NSWindows briefly when roots are destroyed (tests
         # or embedded use). Never configure a hidden retired window instead.
-        window = next((item for item in matches if item.isVisible()), None)
+        visible = [item for item in matches if item.isVisible()]
+        # Prefer the titled, key-capable wrapper when Tk is remapping from its
+        # borderless widget. A retired wrapper can remain in NSApp.windows briefly.
+        window = next((item for item in visible if not self.root.overrideredirect()
+                       and item.canBecomeKeyWindow()), None)
+        if window is None:
+            window = next(iter(visible), None)
         if window is None and self.window in matches:
             window = self.window
         if window is None:
@@ -61,4 +78,3 @@ class FloatingWindowPolicy:
         window.setCollectionBehavior_(behavior)
         # No makeKeyAndOrderFront, activateIgnoringOtherApps, or focus_force.
         self.window = window
-

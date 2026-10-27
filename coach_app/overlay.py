@@ -1,283 +1,199 @@
-"""Single-root floating companion. Only the main thread touches Tk widgets."""
-
+"""Minimal Coach: session reports and Unity-owned Mode 2 control."""
 import queue
-import sys
 import threading
-from pathlib import Path
+import time
 import tkinter as tk
-from tkinter import ttk
-
-if __package__:
-    from .nebius_client import AnalysisError, analyze_session
-    from .macos_window import FloatingWindowPolicy
-    from .report_format import SECTIONS, prepare_session
-    from .session_reader import find_latest_session, read_session, select_session_file
-else:
-    from nebius_client import AnalysisError, analyze_session
-    from macos_window import FloatingWindowPolicy
-    from report_format import SECTIONS, prepare_session
-    from session_reader import find_latest_session, read_session, select_session_file
-
-BG, SURFACE, TEXT, MUTED, ACCENT = "#111923", "#1a2633", "#ecf2f7", "#9aaec0", "#58d6ed"
-STATUS_COLORS = {"Ready": ACCENT, "Analyzing": "#f3c568", "Report Ready": "#78dfaa", "Error": "#ff8c94"}
-
+from tkinter import ttk, simpledialog, messagebox
+from pathlib import Path
+from coach_app.nebius_client import analyze_session
+from coach_app.credentials import CredentialError, save_api_key
+from coach_app.report_format import prepare_session, measured_report
+from coach_app.macos_window import FloatingWindowPolicy
+from coach_app.session_reader import read_session, select_session_file, find_latest_session
 
 class CoachWindow:
-    def __init__(self, root: tk.Tk, session_path: str | None = None, commands=None) -> None:
-        self.root, self.session_path, self.commands = root, session_path, commands
-        self.current_path = self.pending_path = None
+    def __init__(self, root, session_path=None, commands=None, server=None):
+        self.root, self.session_path, self.commands, self.server = root, session_path, commands, server
+        self.closed = self.busy = False
         self.results = queue.Queue()
-        self.busy = self.closed = self.expanded = False
-        self.widget_position = (max(0, root.winfo_screenwidth() - 100), 120)
-        self.panel_position = self.drag_start = None
-        self.dragged = False
-        self.status_name = "Ready"
-        self.status = tk.StringVar(value="Ready")
-        self.session_label = tk.StringVar(value="No session loaded")
-        root.title("AI Aim Trainer Coach")
-        root.protocol("WM_DELETE_WINDOW", self.close)
+        root.title("AI Coach")
         root.overrideredirect(True)
-        root.resizable(False, False)
         root.attributes("-topmost", True)
-        root.configure(bg=BG)
-        self.floating_policy = FloatingWindowPolicy(root)
-        self.build_widget()
-        self.build_panel()
-        root.bind("<Escape>", lambda _event: self.close())
-        self.collapse()
-        self.poll_id = root.after(100, self.poll_results)
-
-    def build_widget(self) -> None:
-        self.widget = tk.Canvas(self.root, width=64, height=64, bg=BG, highlightthickness=0, cursor="hand2")
-        self.widget.create_oval(2, 2, 62, 62, fill=SURFACE, outline=ACCENT, width=2)
-        self.widget.create_text(32, 29, text="AI", fill=TEXT, font=("Helvetica", 18, "bold"))
-        self.indicator = self.widget.create_oval(43, 45, 55, 57, fill=ACCENT, outline=SURFACE, width=2)
-        self.bind_drag(self.widget)
-
-    def build_panel(self) -> None:
-        style = ttk.Style(self.root)
-        style.theme_use("clam")
-        style.configure("Coach.TButton", background=SURFACE, foreground=TEXT, padding=(10, 9), borderwidth=0)
-        style.map("Coach.TButton", background=[("active", "#294455")], foreground=[("disabled", MUTED)])
-        style.configure("Primary.Coach.TButton", background=ACCENT, foreground=BG)
-        style.map("Primary.Coach.TButton", background=[("active", "#8ce6f5"), ("disabled", SURFACE)])
-        style.configure("Coach.Vertical.TScrollbar", background=SURFACE, troughcolor=BG, borderwidth=0, arrowsize=12)
-        self.panel = tk.Frame(self.root, bg=BG, padx=22, pady=18)
-        header = tk.Frame(self.panel, bg=BG)
-        header.pack(fill="x")
-        title = tk.Label(header, text="AI AIM TRAINER", bg=BG, fg=TEXT, font=("Helvetica", 17, "bold"))
-        title.pack(side="left")
-        self.minimize_button = ttk.Button(header, text="Minimize", command=self.close, style="Coach.TButton")
-        self.minimize_button.pack(side="right")
-        self.bind_drag(header)
-        self.bind_drag(title)
-        tk.Label(self.panel, text="AI Performance Coach", bg=BG, fg=MUTED, font=("Helvetica", 11)).pack(anchor="w", pady=(2, 12))
-        self.status_label = tk.Label(self.panel, textvariable=self.status, bg=BG, fg=ACCENT, font=("Helvetica", 11, "bold"))
-        self.status_label.pack(anchor="w")
-        tk.Label(self.panel, textvariable=self.session_label, bg=BG, fg=MUTED, font=("Helvetica", 10),
-                 anchor="w", wraplength=432).pack(fill="x", pady=(3, 12))
-        stats = tk.Frame(self.panel, bg=SURFACE, padx=12, pady=12)
-        stats.pack(fill="x")
+        root.geometry(f"64x64+{max(0, root.winfo_screenwidth()-100)}+120")
+        self.panel = tk.Toplevel(root)
+        self.panel.title("AI Aim Trainer Coach")
+        self.panel.geometry("480x760")
+        self.panel.attributes("-topmost", True)
+        self.panel.protocol("WM_DELETE_WINDOW", self.close)
+        self.panel.configure(bg="#111923")
+        style = ttk.Style(root); style.theme_use("clam")
+        style.configure("TFrame", background="#111923")
+        style.configure("TLabel", background="#111923", foreground="#9aaec0", font=("Helvetica", 11))
+        style.configure("TButton", background="#1a2633", foreground="#ecf2f7", padding=(10,8), borderwidth=0)
+        style.map("TButton", background=[("active", "#294455")])
+        style.configure("TMenubutton", background="#1a2633", foreground="#58d6ed", padding=(10,8))
+        style.configure("Horizontal.TScale", background="#111923", troughcolor="#1a2633")
+        tk.Label(self.panel, text="AI AIM TRAINER", font=("Helvetica", 18, "bold"),
+                 bg="#111923", fg="#ecf2f7").pack(anchor="w", padx=16, pady=(18,2))
+        tk.Label(self.panel, text="AI Performance Coach", font=("Helvetica",11),
+                 bg="#111923", fg="#58d6ed").pack(anchor="w", padx=16, pady=(0,10))
+        self.panel.withdraw()
+        self.floating_policies = [FloatingWindowPolicy(root), FloatingWindowPolicy(self.panel)]
+        self.bubble = tk.Canvas(root, width=64, height=64, bg="#111923", highlightthickness=0, cursor="hand2")
+        self.bubble.create_oval(3,3,61,61, fill="#1a2633", outline="#58d6ed", width=2)
+        self.bubble.create_text(32,32,text="AI",fill="#58d6ed",font=("Helvetica",19,"bold"))
+        self.bubble.pack(fill="both", expand=True)
+        self.bubble.bind("<ButtonPress-1>", self.drag_start)
+        self.bubble.bind("<B1-Motion>", self.drag_move)
+        self.bubble.bind("<ButtonRelease-1>", self.drag_end)
+        root.after_idle(self.show_companion)
+        self.mode = tk.StringVar(value="Mode 1 Coach")
+        ttk.OptionMenu(self.panel, self.mode, self.mode.get(), "Mode 1 Coach", "Mode 2 Unity Assist", command=self.change_mode).pack(fill="x", padx=12, pady=8)
+        row = ttk.Frame(self.panel); row.pack(fill="x", padx=12)
+        ttk.Button(row, text="Open session", command=self.open_file).pack(side="left")
+        ttk.Button(row, text="Latest session", command=self.load_latest).pack(side="left")
+        ttk.Button(row, text="API key", command=self.configure_api_key).pack(side="left")
+        stats = ttk.Frame(self.panel); stats.pack(fill="x", padx=16, pady=8)
         self.stat_values = {}
-        for index, name in enumerate(("Shots", "Hits", "Accuracy", "Average Reaction")):
-            cell = tk.Frame(stats, bg=SURFACE)
-            cell.grid(row=index // 2, column=index % 2, sticky="ew", padx=5, pady=5)
-            stats.columnconfigure(index % 2, weight=1, uniform="stats")
-            tk.Label(cell, text=name, bg=SURFACE, fg=MUTED, font=("Helvetica", 10)).pack(anchor="w")
-            value = tk.StringVar(value="--")
-            self.stat_values[name] = value
-            tk.Label(cell, textvariable=value, bg=SURFACE, fg=TEXT, font=("Helvetica", 19, "bold")).pack(anchor="w")
-        tk.Label(self.panel, text="AI REPORT", bg=BG, fg=MUTED, font=("Helvetica", 10, "bold")).pack(anchor="w", pady=(16, 8))
-        report_frame = tk.Frame(self.panel, bg=BG)
-        report_frame.pack(fill="both", expand=True)
-        self.report = tk.Text(report_frame, bg=BG, fg=TEXT, insertbackground=TEXT, wrap="word",
-                              font=("Helvetica", 12), relief="flat", highlightthickness=0,
-                              spacing3=6, state="disabled", height=8)
-        self.report.pack(side="left", fill="both", expand=True)
-        scrollbar = ttk.Scrollbar(report_frame, command=self.report.yview, style="Coach.Vertical.TScrollbar")
+        for index, name in enumerate(("Shots", "Hits", "Accuracy", "Avg reaction")):
+            cell = tk.Frame(stats, bg="#1a2633", padx=10, pady=8)
+            cell.grid(row=index//2,column=index%2,sticky="ew",padx=3,pady=3)
+            stats.columnconfigure(index%2,weight=1)
+            tk.Label(cell,text=name,bg="#1a2633",fg="#9aaec0",font=("Helvetica",10)).pack(anchor="w")
+            value=tk.StringVar(value="—");self.stat_values[name]=value
+            tk.Label(cell,textvariable=value,bg="#1a2633",fg="#ecf2f7",font=("Helvetica",15,"bold")).pack(anchor="w")
+        self.controls = ttk.Frame(self.panel)
+        self.assist_kind = tk.StringVar(value="Hold RMB")
+        ttk.OptionMenu(self.controls, self.assist_kind, self.assist_kind.get(), "Hold RMB", "Proximity magnet", command=lambda _: self.stop_mode2()).pack(fill="x")
+        self.radius = tk.DoubleVar(value=3.0)
+        self.radius_text = tk.StringVar(value="Assist zone: 3.0 deg")
+        ttk.Label(self.controls, textvariable=self.radius_text).pack(anchor="w")
+        ttk.Scale(self.controls, from_=0.5, to=10, variable=self.radius, command=self.radius_changed).pack(fill="x")
+        self.speed = tk.DoubleVar(value=65)
+        self.speed_text = tk.StringVar(value="Assist speed: 65 deg/s")
+        ttk.Label(self.controls, textvariable=self.speed_text).pack(anchor="w")
+        ttk.Scale(self.controls, from_=5, to=180, variable=self.speed, command=self.speed_changed).pack(fill="x")
+        ttk.Label(self.controls, text="Proximity: mouse still 150 ms · F8 / ESC stops").pack()
+        ttk.Button(self.controls, text="Start Assist", command=self.start_assist).pack(side="left")
+        ttk.Button(self.controls, text="Stop", command=self.stop_mode2).pack(side="left")
+        self.status = tk.StringVar(value="Ready")
+        ttk.Label(self.panel, textvariable=self.status, wraplength=450).pack(fill="x", padx=12, pady=8)
+        self.calibration = tk.StringVar(value="No corrections yet")
+        ttk.Label(self.panel, textvariable=self.calibration, wraplength=440).pack(fill="x", padx=16, pady=6)
+        self.report_frame = ttk.Frame(self.panel)
+        self.report_frame.pack(fill="both", expand=True, padx=12, pady=8)
+        self.report = tk.Text(self.report_frame, wrap="word", state="disabled", bg="#1a2633", fg="#ecf2f7",
+                              font=("Helvetica", 12), padx=14, pady=14, relief="flat")
+        scrollbar = ttk.Scrollbar(self.report_frame, orient="vertical", command=self.report.yview)
         scrollbar.pack(side="right", fill="y")
         self.report.configure(yscrollcommand=scrollbar.set)
-        self.report.tag_configure("heading", foreground=ACCENT, font=("Helvetica", 12, "bold"), spacing1=10, spacing3=5)
-        footer = tk.Frame(self.panel, bg=BG)
-        footer.pack(fill="x", pady=(12, 0))
-        tk.Label(footer, text="COACH MODE", bg=BG, fg=MUTED, font=("Helvetica", 9, "bold")).pack(anchor="w")
-        self.mode_button = ttk.Menubutton(footer, text="Mode 1: Post-Session Review", style="Coach.TButton")
-        self.mode_button.pack(fill="x", pady=(5, 8))
-        self.mode_menu = tk.Menu(self.mode_button, tearoff=False)
-        self.mode_menu.add_command(label="Mode 1: Post-Session Review", command=lambda: None)
-        self.mode_menu.add_command(label="Mode 2: Guided Aim - Coming Soon", state="disabled")
-        self.mode_button.configure(menu=self.mode_menu)
-        actions = tk.Frame(footer, bg=BG)
-        actions.pack(fill="x")
-        self.latest_button = ttk.Button(actions, text="Analyze Latest", command=self.load_latest, style="Primary.Coach.TButton")
-        self.latest_button.pack(side="left", fill="x", expand=True)
-        self.open_button = ttk.Button(actions, text="Open JSON", command=self.open_file, style="Coach.TButton")
-        self.open_button.pack(side="right", padx=(8, 0))
-        self.show_report("\n\n".join(section + ":\n--" for section in SECTIONS))
-
-    def bind_drag(self, widget) -> None:
-        widget.bind("<ButtonPress-1>", self.start_drag)
-        widget.bind("<B1-Motion>", self.move_drag)
-        widget.bind("<ButtonRelease-1>", self.end_drag)
-
-    def start_drag(self, event) -> None:
-        self.drag_start = (event.x_root, event.y_root, self.root.winfo_x(), self.root.winfo_y())
-        self.dragged = False
-
-    def move_drag(self, event) -> None:
-        if self.drag_start is None:
-            return
-        x, y, window_x, window_y = self.drag_start
-        dx, dy = event.x_root - x, event.y_root - y
-        if abs(dx) + abs(dy) > 5:
-            self.dragged = True
-        if self.dragged:
-            position = self.clamp_position(window_x + dx, window_y + dy, self.root.winfo_width(), self.root.winfo_height())
-            self.root.geometry(f"+{position[0]}+{position[1]}")
-            if self.expanded:
-                self.panel_position = position
-            else:
-                self.widget_position = position
-
-    def end_drag(self, _event) -> None:
-        if not self.dragged and not self.expanded:
-            self.show_window()
-        self.drag_start = None
-
-    def clamp_position(self, x, y, width, height):
-        return (max(0, min(int(x), self.root.winfo_screenwidth() - width)),
-                max(0, min(int(y), self.root.winfo_screenheight() - height)))
-
-    def collapse(self) -> None:
-        self.expanded = False
-        self.panel.pack_forget()
-        self.widget.pack()
-        x, y = self.clamp_position(*self.widget_position, 64, 64)
-        self.root.geometry(f"64x64+{x}+{y}")
-        if sys.platform == "darwin":
-            try:
-                self.root.configure(bg="systemTransparent")
-                self.widget.configure(bg="systemTransparent")
-                self.root.attributes("-transparent", True)
-            except tk.TclError:
-                pass
-        self.root.deiconify()  # Never force focus while collapsed.
-        self.floating_policy.schedule()
-
-    def show_window(self) -> None:
-        if self.expanded:
-            self.root.deiconify()
-            self.root.lift()
-            self.floating_policy.schedule()
-            return
-        self.expanded = True
-        self.widget.pack_forget()
-        if sys.platform == "darwin":
-            try:
-                self.root.attributes("-transparent", False)
-            except tk.TclError:
-                pass
-        self.root.configure(bg=BG)
-        self.panel.pack(fill="both", expand=True)
-        width = min(480, self.root.winfo_screenwidth())
-        height = min(650, self.root.winfo_screenheight() - 40)
-        position = self.panel_position or (self.widget_position[0] - width + 64, self.widget_position[1])
-        x, y = self.clamp_position(*position, width, height)
-        self.root.geometry(f"{width}x{height}+{x}+{y}")
-        self.root.deiconify()
-        self.root.lift()  # Native Tk only: no AppleScript or Accessibility access.
-        self.floating_policy.schedule()
-
-    def set_status(self, value: str) -> None:
-        self.status_name = value
-        self.status.set("Analyzing session..." if value == "Analyzing" else value)
-        color = STATUS_COLORS[value]
-        self.widget.itemconfigure(self.indicator, fill=color)
-        self.status_label.configure(fg=color)
-
-    def open_file(self) -> None:
-        path = select_session_file(self.root)
-        if path is not None:
-            self.load(path)
-
-    def load_latest(self) -> None:
-        location = self.session_path or (self.current_path.parent if self.current_path else None)
-        if location is None:
-            self.open_file()
+        self.report.pack(side="left", fill="both", expand=True)
+        self.panel.bind("<Escape>", lambda e: self.stop_mode2())
+        self.panel.bind("<F8>", lambda e: self.stop_mode2())
+        self.poll_id = root.after(100, self.poll_results)
+    def configure_api_key(self):
+        key = simpledialog.askstring(
+            "Nebius API key", "Enter your own Nebius API key.\n"
+            "Saved in this Mac's login Keychain, outside the app.\n"
+            "Saving replaces the Coach key on this Mac. Cancel keeps it unchanged.",
+            parent=self.panel, show="*")
+        if key is None:
             return
         try:
-            self.load(find_latest_session(location))
-        except (OSError, ValueError) as error:
-            self.set_status("Error")
-            self.show_report(str(error))
-
-    def load(self, path) -> None:
-        if self.closed:
-            return
-        if self.busy:
-            self.pending_path = Path(path)
-            return
-        self.show_window()
-        try:
-            session = read_session(path)
-        except (OSError, ValueError) as error:
-            self.set_status("Error")
-            self.show_report(str(error))
-            return
-        self.current_path = Path(path)
-        self.busy = True
-        data = prepare_session(session)
-        for label, key in (("Shots", "shots"), ("Hits", "hits"), ("Accuracy", "accuracy"), ("Average Reaction", "avg_reaction_ms")):
-            self.stat_values[label].set(str(data[key]))
-        self.session_label.set("Session " + str(session["session_id"])[:12])
-        self.open_button.configure(state="disabled")
-        self.latest_button.configure(state="disabled")
-        self.set_status("Analyzing")
-        self.show_report("Analyzing session...")
-        threading.Thread(target=self.analyze_worker, args=(session, path), daemon=True).start()
-
-    def analyze_worker(self, session, path) -> None:
-        try:
-            self.results.put((path, analyze_session(session), None))
-        except AnalysisError as error:
-            self.results.put((path, None, str(error)))
-        except Exception as error:
-            print(f"[coach] Worker failure: {type(error).__name__} (details suppressed for privacy)", flush=True)
-            self.results.put((path, None, f"Analysis failed ({type(error).__name__}). See Terminal diagnostics."))
-
-    def poll_results(self) -> None:
-        if self.closed:
-            return
-        if self.commands is not None:
-            while True:
-                try:
-                    self.pending_path = self.commands.get_nowait()
-                    self.show_window()
-                except queue.Empty:
-                    break
-        try:
-            _path, report, error = self.results.get_nowait()
-        except queue.Empty:
-            pass
+            save_api_key(key)
+        except CredentialError as error:
+            messagebox.showerror("API key", str(error), parent=self.panel)
         else:
-            self.busy = False
-            self.open_button.configure(state="normal")
-            self.latest_button.configure(state="normal")
-            self.set_status("Error" if error else "Report Ready")
-            self.show_report(error if error else report)
-        if not self.busy and self.pending_path is not None:
-            path, self.pending_path = self.pending_path, None
-            self.load(path)
+            messagebox.showinfo("API key", "Saved to this Mac's Keychain. Open a session to request AI advice.", parent=self.panel)
+        finally:
+            key = None
+
+    def speed_changed(self, value):
+        self.speed_text.set(f"Assist speed: {float(value):.0f} deg/s")
+        if self.server: self.server.assist_speed = float(value)
+    def radius_changed(self, value):
+        self.radius_text.set(f"Assist zone: {float(value):.1f} deg")
+        self.stop_mode2()
+    def change_mode(self, value):
+        self.stop_mode2()
+        if value == "Mode 2 Unity Assist": self.controls.pack(fill="x", padx=12, before=self.report_frame)
+        else: self.controls.pack_forget()
+    def start_assist(self):
+        if self.server:
+            self.server.assist_mode = "proximity" if self.assist_kind.get() == "Proximity magnet" else "hold"
+            self.server.assist_radius = float(self.radius.get())
+            self.server.assist_speed = float(self.speed.get())
+            self.server.assist_sequence += 1
+            self.server.assist_enabled = True
+    def stop_mode2(self):
+        if self.server:
+            self.server.assist_enabled = False
+            self.server.assist_sequence += 1
+    def open_file(self):
+        path = select_session_file(self.root)
+        if path: self.load(path)
+    def load_latest(self):
+        if not self.session_path: self.open_file(); return
+        try: self.load(find_latest_session(self.session_path))
+        except (OSError, ValueError) as error: self.show_report(str(error))
+    def show_report(self, text):
+        self.report.configure(state="normal"); self.report.delete("1.0", "end")
+        self.report.insert("end", text); self.report.configure(state="disabled")
+    def load(self, path):
+        if self.busy: return
+        try: session = read_session(path)
+        except (OSError, ValueError) as error: self.show_report(str(error)); return
+        data = prepare_session(session)
+        for label,key in (("Shots","shots"),("Hits","hits"),("Accuracy","accuracy"),("Avg reaction","avg_reaction_ms")):
+            self.stat_values[label].set(str(data[key]))
+        self.session_path = str(Path(path).parent)
+        self.busy = True
+        self.show_window()
+        self.status.set("Analyzing session...")
+        def worker():
+            try: result = analyze_session(session)
+            except Exception as error: result = measured_report(session) + "\n\nAnalysis unavailable: " + str(error)
+            self.results.put(result)
+        threading.Thread(target=worker, daemon=True).start()
+    def poll_results(self):
+        if self.closed: return
+        if self.server:
+            native = self.floating_policies[0].window
+            self.server.companion_visible = bool(self.root.winfo_viewable() and (native is None or native.isVisible()))
+            self.server.companion_floating = bool(native is not None and native.level() >= self.floating_policies[0].appkit.NSFloatingWindowLevel)
+        if self.server and self.server.show_requested.is_set():
+            self.server.show_requested.clear()
+            self.show_companion()
+        if self.server and self.mode.get() == "Mode 2 Unity Assist":
+            fresh = time.monotonic() - self.server.assist_seen < 1
+            self.status.set(self.server.assist_status if fresh else "Unity disconnected")
+            self.calibration.set(self.server.assist_feedback if fresh else "")
+            if not fresh and self.server.assist_enabled: self.stop_mode2()
+        try:
+            self.show_report(self.results.get_nowait()); self.busy = False
+            self.status.set("Report ready")
+        except queue.Empty: pass
+        if self.commands is not None and not self.busy:
+            try: self.load(self.commands.get_nowait())
+            except queue.Empty: pass
         self.poll_id = self.root.after(100, self.poll_results)
-
-    def show_report(self, report: str) -> None:
-        self.report.configure(state="normal")
-        self.report.delete("1.0", "end")
-        for line in report.splitlines():
-            heading = line.strip().rstrip(":") in SECTIONS
-            self.report.insert("end", line + "\n", "heading" if heading else "body")
-        self.report.configure(state="disabled")
-        self.report.yview_moveto(0)
-
-    def close(self) -> None:
-        self.collapse()  # IPC and workers remain alive in the same root/process.
+    def show_companion(self):
+        self.root.deiconify(); self.root.lift()
+        self.floating_policies[0].schedule()
+    def show_window(self):
+        self.panel.deiconify(); self.panel.lift()
+        self.floating_policies[1].schedule()
+    def drag_start(self, event):
+        self.drag_origin = (event.x_root, event.y_root, self.root.winfo_x(), self.root.winfo_y())
+        self.dragged = False
+    def drag_move(self, event):
+        x, y, left, top = self.drag_origin
+        dx, dy = event.x_root-x, event.y_root-y
+        if abs(dx)+abs(dy) > 5: self.dragged = True
+        if self.dragged: self.root.geometry(f"+{max(0,left+dx)}+{max(0,top+dy)}")
+    def drag_end(self, event):
+        if not self.dragged: self.show_window()
+    def close(self):
+        self.stop_mode2(); self.panel.withdraw(); self.show_companion()
+    def shutdown(self):
+        self.stop_mode2(); self.closed = True

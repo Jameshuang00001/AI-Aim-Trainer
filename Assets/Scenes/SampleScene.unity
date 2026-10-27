@@ -3903,7 +3903,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 74136032b1da6469193d2d1f53a16b46, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -144.7
+      value: -144.1
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 74136032b1da6469193d2d1f53a16b46, type: 3}
       propertyPath: m_LocalPosition.y
@@ -3911,7 +3911,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 74136032b1da6469193d2d1f53a16b46, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -20.5
+      value: -20.6
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 74136032b1da6469193d2d1f53a16b46, type: 3}
       propertyPath: m_LocalRotation.w
@@ -6974,6 +6974,7 @@ GameObject:
   - component: {fileID: 1500891683}
   - component: {fileID: 1500891682}
   - component: {fileID: 1500891685}
+  - component: {fileID: 1500891686}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -7059,6 +7060,21 @@ MonoBehaviour:
   minY: -5
   maxDistanceFromOrigin: 50
   resetPosition: {x: 0, y: 1, z: 0}
+--- !u!114 &1500891686
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1500891681}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c0f434d5fa8c34e088e6638a319c8479, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  coneDegrees: 25
+  maxDegreesPerSecond: 65
+  smoothing: 7
 --- !u!1 &1550184021
 GameObject:
   m_ObjectHideFlags: 0
@@ -7096,7 +7112,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 100, y: -80}
-  m_SizeDelta: {x: 500, y: 400}
+  m_SizeDelta: {x: 1000, y: 1000}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1550184023
 MonoBehaviour:
@@ -7531,7 +7547,7 @@ Transform:
   m_GameObject: {fileID: 1633734529}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 10}
+  m_LocalPosition: {x: 0.3, y: 0, z: 10}
   m_LocalScale: {x: 8, y: 1, z: 12}
   m_ConstrainProportionsScale: 0
   m_Children: []

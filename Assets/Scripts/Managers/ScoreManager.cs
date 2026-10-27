@@ -80,7 +80,6 @@ public class ScoreManager : MonoBehaviour
         UpdateAccuracy();
         NotifyStatsChanged();
         NotifyHitFeedback(reactionTime);
-        LogStats();
     }
 
     public void RegisterMiss(string targetId = null)
@@ -95,7 +94,6 @@ public class ScoreManager : MonoBehaviour
         UpdateAccuracy();
         NotifyStatsChanged();
         if (uiManager != null) uiManager.ShowMissFeedback();
-        LogStats();
     }
 
     public void SetUIManager(UIManager newUIManager)
@@ -118,14 +116,6 @@ public class ScoreManager : MonoBehaviour
     {
         // Menu and completed sessions must not change the score.
         return SessionManager.Instance != null && SessionManager.Instance.IsSessionActive && !SessionManager.Instance.IsPaused;
-    }
-
-    private void LogStats()
-    {
-        Debug.Log(
-            $"Shots: {ShotsFired} | Hits: {Hits} | Misses: {Misses} | " +
-            $"Accuracy: {AccuracyPercentage:F1}% | Avg Reaction: {AverageReactionTime:F3}s"
-        );
     }
 
     private void NotifyStatsChanged()

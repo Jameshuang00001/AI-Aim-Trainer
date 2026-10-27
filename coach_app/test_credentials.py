@@ -53,6 +53,23 @@ class CredentialTests(unittest.TestCase):
             with self.assertRaisesRegex(nebius_client.AnalysisError, "Unlock Keychain"):
                 nebius_client.analyze_session({})
 
+    def test_ui_cancel_does_not_save(self):
+        from coach_app.overlay import CoachWindow
+        window = MagicMock()
+        with patch("coach_app.overlay.simpledialog.askstring", return_value=None), patch("coach_app.overlay.save_api_key") as save:
+            CoachWindow.configure_api_key(window)
+            save.assert_not_called()
+
+    def test_ui_masks_and_saves_only_entered_key(self):
+        from coach_app.overlay import CoachWindow
+        window = MagicMock()
+        with patch("coach_app.overlay.simpledialog.askstring", return_value="new-user-test-key") as prompt, patch("coach_app.overlay.save_api_key") as save, patch("coach_app.overlay.messagebox.showinfo") as info:
+            CoachWindow.configure_api_key(window)
+            self.assertEqual(prompt.call_args.kwargs["show"], "*")
+            self.assertNotIn("initialvalue", prompt.call_args.kwargs)
+            save.assert_called_once_with("new-user-test-key")
+            self.assertNotIn("new-user-test-key", str(info.call_args))
+
     def test_other_platform_does_not_try_keychain(self):
         with patch.dict("os.environ", {}, clear=True), patch.object(credentials.sys, "platform", "linux"):
             with patch.object(credentials, "macos_backend") as backend:

@@ -1,4 +1,4 @@
-# AI Aim Trainer — Original / Full Project
+# AI Aim Trainer — Hackathon Submission Edition
 
 ## Two editions
 
@@ -14,7 +14,7 @@ A Unity aim trainer with a floating desktop Coach that connects measured practic
 
 **Train → measure → select a supported drill → practice again.**
 
-- [Download the original macOS app](https://github.com/Jameshuang00001/AI-Aim-Trainer/releases/tag/v1.0.1)
+- [Download the competition macOS app](https://github.com/Jameshuang00001/AI-Aim-Trainer/releases/tag/competition-v1.0.0)
 - [Source repository](https://github.com/Jameshuang00001/AI-Aim-Trainer)
 - Suggested hackathon track: **Best Apps and Agents**
 
@@ -117,7 +117,7 @@ Build Unity by running the Editor method `Mode2Build.Build` with a valid Unity l
 .venv/bin/python tools/package_macos.py /absolute/path/to/new/AI-Aim-Trainer.app
 ```
 
-Choose a destination that does not already exist. Packaging embeds Coach and its runtime and checks for external symbolic links. Apple Developer ID signing/notarization is a separate distribution step. The v1.0.1 downloadable app additionally contains the supplied multi-resolution macOS icon; it reuses the tested game binary rather than a new Unity compilation.
+Choose a destination that does not already exist. Packaging embeds Coach and its runtime and checks for external symbolic links. Apple Developer ID signing/notarization is a separate distribution step. This edition has a new Unity compilation using the saved competition scene. The separately named macOS app embeds Coach and retains the supplied AI-generated icon. Editor-only art-authoring and smoke-test helpers are not player runtime code.
 
 ## Work completed during the hackathon period
 
@@ -134,4 +134,8 @@ See [Coach controls](coach_app/MODE2_SETUP.md) and [integration notes](coach_app
 
 ## License and third-party assets
 
-Project code is covered by the root [MIT License](LICENSE). Third-party models, animations, textures and dependencies retain their original licenses; the project's MIT file does not relicense them. A local provenance audit identified the original environment, character/animations and arms as third-party resources. Public raw-asset redistribution and AI-related license conditions are not cleared by this code license. The separate competition edition removes these imported resources from its current source tree and scene dependencies. It does not rewrite earlier public commits or remove earlier release archives.
+Project code is covered by the root [MIT License](LICENSE). Third-party models, animations, textures and dependencies retain their original licenses; the project's MIT file does not relicense them. The competition scene uses project-authored primitive artwork and animation clips. The imported Venator, Mixamo and CGTrader resources are absent from this edition's current source tree and scene dependencies. See [original-art notes](ORIGINAL_ART.txt) and [historical asset audit](THIRD_PARTY_ASSETS.txt). The AI-generated cover/icon retain their separate provenance considerations. Earlier commits and original releases still contain the previous resources; this is not a history purge.
+
+## Competition source contents
+
+`Assets/OriginalArt/` contains the current materials and animation clips. `Assets/Editor/OriginalArtVerification.cs` is an opt-in Editor smoke test for spawning, moving targets, head-zone ownership/raycasting, scoring, Flick replacement and Reaction activation. The saved scene is ready to run; the one-time art migration tool is not required for normal builds. Retired visual-assist experiments and local art backups are excluded from this source tree.

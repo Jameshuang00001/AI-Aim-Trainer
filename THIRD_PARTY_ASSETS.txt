@@ -1,0 +1,96 @@
+LOCAL ORIGINAL-ART PREVIEW UPDATE — October 27, 2026
+The original scene, target, arms and gun were replaced locally with Unity primitive geometry, newly authored materials and animation clips under Assets/OriginalArt. The older imported models, animation files and textures are retained only in ignored LocalArtBackup/20261027 and the pre-change backup branch/archive. They are not dependencies of the current scene/prefab. The historical audit below describes the earlier version. Earlier public GitHub commits and Releases have NOT been modified or cleared by this local replacement. AI-generated cover/icon provenance still requires its separate provider/input check.
+
+AI AIM TRAINER — THIRD-PARTY ART ASSET SOURCES
+Checked: October 27, 2026
+
+This notice records identified sources and the license information found during a local audit. It is not a declaration that every distribution or AI-related use has been cleared. Third-party artwork is not relicensed under the project's MIT code license. The source repository and compiled app need separate distribution review.
+
+1. ENVIRONMENT — SOURCE AND PUBLISHER LICENSE IDENTIFIED
+
+Title: Star Wars: The Clone Wars: Venator Prefab
+Creator / publisher: ShineyFX
+Original page:
+https://sketchfab.com/3d-models/star-wars-the-clone-wars-venator-prefab-8a1e1760391c4ac6a50373c2bf5efa2e
+License displayed on the original page: Creative Commons Attribution 4.0 International (CC BY 4.0)
+License link: https://creativecommons.org/licenses/by/4.0/
+
+Project files:
+- Assets/Models/Environment/Venator/PreviewSet.fbx
+- Assets/Models/Environment/Venator/VenatorV3Prefab.fbx
+- Assets/Textures/Environment/Venator/ (both texture sets, including filenames ending in “ 1.png”)
+
+Evidence: the downloaded archive's macOS source metadata identifies Sketchfab model ID 8a1e1760391c4ac6a50373c2bf5efa2e. Both project FBX files and all 34 environment PNGs match files in the extracted download byte-for-byte (SHA-256). The original page was opened in a browser and showed ShineyFX and the CC BY 4.0 license link. Neither the outer download ZIP nor its nested source ZIP contained a license/readme file.
+
+Attribution text:
+“Star Wars: The Clone Wars: Venator Prefab” by ShineyFX, available at https://sketchfab.com/3d-models/star-wars-the-clone-wars-venator-prefab-8a1e1760391c4ac6a50373c2bf5efa2e, licensed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/. Imported and configured for the Unity training scene. The audited FBX and texture source files are byte-identical to the downloaded files; Unity scene placement, material assignment and import configuration are project integration work. No endorsement is implied.
+
+Open issue: the publisher describes this as a fan resource inspired by The Clone Wars. The publisher's CC license does not itself establish permission for underlying franchise rights or trademarks. No separate franchise permission was found. Preserve the attribution and confirm this issue before representing the asset as fully cleared for the competition or promotional use.
+
+2. CHARACTER AND ANIMATIONS — MIXAMO ORIGIN IDENTIFIED
+
+Provider: Adobe Mixamo
+Service: https://www.mixamo.com/
+Official usage FAQ: https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html
+Additional terms: https://wwwimages2.adobe.com/content/dam/cc/en/legal/servicetou/Mixamo-Addl-Terms-en_US-20210623.pdf
+
+Project-to-download mapping (exact SHA-256 matches):
+- Assets/Models/EnemyHumanoid/X Bot.fbx ← X Bot.fbx
+- Assets/Animations/EnemyHumanoid/X Bot@Walking.fbx ← X Bot@Walking.fbx
+- Assets/Animations/EnemyHumanoid/X Bot@Death.fbx ← X Bot@Rifle Death.fbx
+- Assets/Animations/EnemyHumanoid/X Bot@Idle.fbx ← X Bot@Shooting.fbx
+
+The local “Idle” filename is not the original animation title. It is an unchanged copy of the downloaded Shooting animation. Each matched download retains Mixamo source-domain metadata. Project integration includes Unity humanoid import/Animator configuration, hit zones and gameplay material tinting; it does not imply original authorship of the downloaded model or animation.
+
+Courtesy credit:
+“X Bot character and Shooting, Walking and Rifle Death animations provided by Adobe Mixamo. Integrated into AI Aim Trainer with Unity humanoid configuration and gameplay components. Adobe/Mixamo artwork is not covered by this project's MIT code license.”
+
+License review status: Adobe's official FAQ permits royalty-free use of characters and animations in games. This is not an open-source-art license. An Adobe-hosted community FAQ discusses restrictions on distributing raw character/animation files; it is supporting guidance, not a substitute for the governing terms:
+https://community.adobe.com/questions-696/mixamo-faq-licensing-royalties-ownership-eula-and-tos-589400?lang=en
+
+Open issues: the project's public repository currently contains raw Mixamo FBX files. Public raw-file redistribution has not been cleared. The additional terms also restrict use of service-derived material in creating, training, testing or improving AI/ML systems. The current app uses numerical gameplay measurements with a pretrained model, but this audit does not establish that the workflow is outside that restriction. Obtain clarification or use assets with suitable permissions; do not assume “no model training” resolves the whole clause.
+
+3. FIRST-PERSON ARMS AND GUN — SOURCE IDENTIFIED; GUN ASSOCIATION CONFIRMED BY PROJECT OWNER
+
+Title: Game Ready FPS Arms
+Creator / publisher: zahers
+Platform: CGTrader
+Product ID: 2864994
+Original page: https://www.cgtrader.com/free-3d-models/character/man/game-ready-fps-arms
+License displayed: Royalty Free License (no AI)
+Governing platform terms: https://www.cgtrader.com/pages/terms-and-conditions
+
+Project owner confirmation (October 27, 2026): the in-game gun came with the arms resource. It is credited with this resource rather than attributed to the separate P9 download. The gun association is owner-provided provenance; its individual mesh origin has not been independently established. It is not represented here as a self-created weapon.
+
+Project files:
+- Assets/Models/FPSViewModel/Arms/arms.fbx
+- Assets/Textures/FPSViewModel/Arms/Textures/T_arms_A.png
+- Assets/Textures/FPSViewModel/Arms/Textures/T_arms_AORM.png
+- Assets/Textures/FPSViewModel/Arms/Textures/T_arms_N.png
+- Assets/Textures/FPSViewModel/Arms/Textures/T_arms_SSS.png
+
+Evidence: project FBX and four PNGs match Downloads/arms.fbx and Downloads/Textures/ byte-for-byte. Download source metadata points to CGTrader product upload ID 2864994 for both arms.fbx and Textures.zip; that ID matches the original product page. The page identifies zahers and the license label. No separate license text was found in Textures.zip. Current online terms are not proof of the exact terms accepted when the files were downloaded.
+
+Courtesy credit:
+“Game Ready FPS Arms” by zahers, downloaded from https://www.cgtrader.com/free-3d-models/character/man/game-ready-fps-arms (CGTrader product 2864994). Integrated as the first-person arms and associated gun resource, with textures. Subject to the applicable CGTrader Royalty Free License (no AI); not distributed under this project's MIT code license.
+
+Open issues: the applicable terms distinguish incorporated game use from raw-asset redistribution and prohibit redistribution outside permitted incorporated products. The public FBX/PNG files therefore need removal from public source distribution, replacement, or separate written redistribution permission. The “no AI” condition also needs a scope review for this workflow. The local files prove provenance, not permission to redistribute or to use them for AI-related inputs. No separate seller permission was found.
+
+4. DOWNLOADED P9 MODEL — NOT IDENTIFIED IN THE PROJECT
+
+Title: P9 Manny FPS Animations
+Creator: Cransh (https://sketchfab.com/ccransh)
+Original page: https://sketchfab.com/3d-models/p9-manny-fps-animations-115d4d820b9a45d89c8d75dd0f244bbe
+Local download: p9_manny_fps_animations.glb
+Embedded license: CC-BY-4.0, https://creativecommons.org/licenses/by/4.0/
+
+The GLB's asset.extras explicitly contains the author, title, source URL and license. No GLB or corresponding standalone imported P9 file was found in Assets. Do not use this license as the license for the CGTrader arms or assume this is the in-game weapon. If a converted mesh was used, establish that mapping and examine any additional component credits on the source page before adding it to the shipped-asset credits.
+
+5. ITEMS STILL REQUIRING OWNER CONFIRMATION
+
+- In-game weapon geometry: the project owner confirms it came with the arms resource. No separate weapon source file was found; the individual weapon mesh and any component-specific notices remain unverified. Do not infer an additional license from the separate P9 download.
+- Assets/images/cover-xbot-final.png and app-icon.png: the project owner confirms both were AI-generated. Credit: “Cover artwork and application icon: AI-generated, as confirmed by the project owner.” No specific AI service, model, generation record, input/reference provenance or applicable provider terms have been confirmed. This statement does not claim the owner hand-drew the artwork or that all rights have been cleared. A matching icon file exists in Downloads.
+- Third-party download receipts, license versions accepted at acquisition, and any creator permissions: none located in the searched asset packages. No inference was made from an asset being free to download.
+
+SCOPE
+The local search covered the Unity Assets tree, asset-related files/packages in Downloads, their download-origin metadata, ZIP contents and relevant primary source pages. It did not read browser history, credentials or unrelated personal documents, and did not change or remove assets. All signed download-query parameters are omitted from this notice and the evidence files. This art audit does not replace a separate inventory of bundled software dependencies.

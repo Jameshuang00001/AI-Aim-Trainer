@@ -46,3 +46,5 @@ __pycache__/
 /runs/
 *.pt
 *.onnx
+# Local preserved original artwork
+/LocalArtBackup/

@@ -1,0 +1,20 @@
+Original art preview — 2026-10-27
+
+The training range decoration, dummy geometry, mechanical arms and blaster were authored specifically for this project using Unity built-in primitives. Materials and Idle/Walk/Fall animation clips were created by the local Editor authoring tool, without importing Mixamo, CGTrader or Venator geometry/texture/animation data.
+
+Authoring tools: Assets/Editor/OriginalArtPreview.cs
+Runtime visual assets: Assets/OriginalArt, Assets/Prefabs/EnemyTarget.prefab, Assets/Scenes/SampleScene.unity
+No code under Assets/Scripts or coach_app was changed by this visual replacement.
+
+The scene retains its existing arena collider dimensions, player and target-spawn configuration. The target retains the Target behavior/settings and an Animator with IsMoving/Death parameters so the existing roaming and death timing paths remain active. The new head and body colliders resolve the original HitZone and Target classes. New primitive muzzle flash is connected to the existing WeaponViewModel component.
+
+The project-authored material/animation assets and authoring code are covered by the project's MIT license. Unity's built-in engine resources remain subject to Unity terms. The separately AI-generated cover/icon are not included in this primitive-art authorship statement.
+
+Backup branch: backup/before-original-assets-20261027
+Backup commit: 6848011
+Ignored old art: LocalArtBackup/20261027
+No push or Release update was performed.
+
+Bright preview revision: the training range uses white/gray surfaces with no floor lines or distance markers. Dummy scale is 1.55x so its head sits near the existing camera eye level. Added original chest/shoulder armor, elbow/knee details, palms and a dark visor. HUD colors and a dark crosshair with a white Outline improve contrast. These changes affect authored assets and scene styling, not runtime algorithms.
+
+Lighting revision: reduced ambient fill, enabled soft directional shadows with stronger shadow contrast, removed front-wall decorative panels, and added a continuous white wall backdrop. All dummy parts share the same blue-tinted body material; geometry supplies the surface detail. Existing enlarged scale and head height are preserved.

@@ -139,3 +139,17 @@ Project code is covered by the root [MIT License](LICENSE). Third-party models, 
 ## Competition source contents
 
 `Assets/OriginalArt/` contains the current materials and animation clips. `Assets/Editor/OriginalArtVerification.cs` is an opt-in Editor smoke test for spawning, moving targets, head-zone ownership/raycasting, scoring, Flick replacement and Reaction activation. The saved scene is ready to run; the one-time art migration tool is not required for normal builds. Retired visual-assist experiments and local art backups are excluded from this source tree.
+
+### Original edition artwork credits — not used in the competition edition
+
+The original/full edition (`main`, original v1.0.1) uses the following third-party artwork. Integration and gameplay programming do not imply authorship of these downloaded assets.
+
+| Original asset | Source / creator | Published license information |
+| --- | --- | --- |
+| Venator environment, scenery and textures | [Star Wars: The Clone Wars: Venator Prefab — ShineyFX](https://sketchfab.com/3d-models/star-wars-the-clone-wars-venator-prefab-8a1e1760391c4ac6a50373c2bf5efa2e) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); imported and configured in Unity; no endorsement implied. Underlying franchise rights are not established by this credit. |
+| X Bot target character and Shooting, Walking, Rifle Death animations | [Adobe Mixamo](https://www.mixamo.com/) | Adobe/Mixamo terms apply. The project's Idle FBX corresponds to the downloaded Shooting animation. |
+| First-person arms and accompanying gun | [Game Ready FPS Arms — zahers / CGTrader](https://www.cgtrader.com/free-3d-models/character/man/game-ready-fps-arms) | Listed as Royalty Free License (no AI). The gun came with the arms resource, as confirmed by the project owner. |
+
+**None of the above imported models, environment textures or animation clips is used in the Hackathon Submission Edition's current source tree, scene or downloadable competition app.** That edition uses project-authored Unity primitive scenery, geometric robots, mechanical arms/gun, materials and animation clips. The AI-generated cover and icon are separate from these imported 3D assets.
+
+These credits are attribution, not a declaration that raw-file redistribution or AI-related license conditions have been cleared. Third-party art is not relicensed under MIT. Original artwork remains in the original edition and historical commits/releases; the competition variant does not erase repository history.

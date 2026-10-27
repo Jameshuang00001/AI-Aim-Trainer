@@ -135,3 +135,17 @@ See [Coach controls](coach_app/MODE2_SETUP.md) and [integration notes](coach_app
 ## License and third-party assets
 
 Project code is covered by the root [MIT License](LICENSE). Third-party models, animations, textures and dependencies retain their original licenses; the project's MIT file does not relicense them. A local provenance audit identified the original environment, character/animations and arms as third-party resources. Public raw-asset redistribution and AI-related license conditions are not cleared by this code license. The separate competition edition removes these imported resources from its current source tree and scene dependencies. It does not rewrite earlier public commits or remove earlier release archives.
+
+### Original edition artwork credits — not used in the competition edition
+
+The original/full edition (`main`, original v1.0.1) uses the following third-party artwork. Integration and gameplay programming do not imply authorship of these downloaded assets.
+
+| Original asset | Source / creator | Published license information |
+| --- | --- | --- |
+| Venator environment, scenery and textures | [Star Wars: The Clone Wars: Venator Prefab — ShineyFX](https://sketchfab.com/3d-models/star-wars-the-clone-wars-venator-prefab-8a1e1760391c4ac6a50373c2bf5efa2e) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); imported and configured in Unity; no endorsement implied. Underlying franchise rights are not established by this credit. |
+| X Bot target character and Shooting, Walking, Rifle Death animations | [Adobe Mixamo](https://www.mixamo.com/) | Adobe/Mixamo terms apply. The project's Idle FBX corresponds to the downloaded Shooting animation. |
+| First-person arms and accompanying gun | [Game Ready FPS Arms — zahers / CGTrader](https://www.cgtrader.com/free-3d-models/character/man/game-ready-fps-arms) | Listed as Royalty Free License (no AI). The gun came with the arms resource, as confirmed by the project owner. |
+
+**None of the above imported models, environment textures or animation clips is used in the Hackathon Submission Edition's current source tree, scene or downloadable competition app.** That edition uses project-authored Unity primitive scenery, geometric robots, mechanical arms/gun, materials and animation clips. The AI-generated cover and icon are separate from these imported 3D assets.
+
+These credits are attribution, not a declaration that raw-file redistribution or AI-related license conditions have been cleared. Third-party art is not relicensed under MIT. Original artwork remains in the original edition and historical commits/releases; the competition variant does not erase repository history.

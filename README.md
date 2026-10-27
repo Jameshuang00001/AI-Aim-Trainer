@@ -7,7 +7,7 @@
 | **Original / Full Project** | The creator's complete original project and visual presentation | [main](https://github.com/Jameshuang00001/AI-Aim-Trainer/tree/main) | [Original v1.0.1](https://github.com/Jameshuang00001/AI-Aim-Trainer/releases/tag/v1.0.1) |
 | **Hackathon Submission Edition** | A separate competition build with project-authored primitive scenery, targets, mechanical arms and gun | [competition-submission](https://github.com/Jameshuang00001/AI-Aim-Trainer/tree/competition-submission) | [Competition v1.0.0](https://github.com/Jameshuang00001/AI-Aim-Trainer/releases/tag/competition-v1.0.0) |
 
-The competition edition is a presentation/artwork variant, not a replacement for the full original project. It keeps the same gameplay and Coach runtime code. It uses a light training range, blue geometric targets and a simple blaster in place of the imported environment, character/animations and arms/gun. Both editions remain available separately. Run one edition at a time; they use the same local Coach port.
+The competition edition is a presentation/artwork variant, not a replacement for the full original project. It keeps the original core gameplay and now includes an updated Coach with conversational feedback and measured previous-session comparisons. It uses a light training range, blue geometric targets and a simple blaster in place of the imported environment, character/animations and arms/gun. Both editions remain available separately. Run one edition at a time; they use the same local Coach port.
 
 
 A Unity aim trainer with a floating desktop Coach that connects measured practice sessions to NVIDIA Nemotron through Nebius Token Factory.
@@ -37,7 +37,7 @@ In proximity mode, an eligible head must be inside the configured zone and mouse
 | --- | --- |
 | Unity / C# | Game simulation, head hit zones, target visibility checks, camera control, manual firing and measurement collection |
 | Local Python Coach | Session summaries, explanations of what measurements mean, eligible exercise definitions and validation of model output |
-| NVIDIA Nemotron | Reads the prepared session measurements and eligible drills, then selects a drill identifier |
+| NVIDIA Nemotron | Interprets measured sessions and available previous-session comparisons; suggests a short, supported training experiment |
 | Nebius Token Factory | Hosts the NVIDIA model inference used by Coach at runtime |
 
 The inference endpoint is `https://api.tokenfactory.nebius.com/v1/`. Coach checks the account's model catalog and selects the first available model in this configured order:
@@ -55,11 +55,11 @@ The client uses the OpenAI Python SDK as an API-compatible client; requests go t
 1. Unity exports session JSON, including shots, hits, misses, timing and optional `aim_corrections` records.
 2. Coach prepares measurements and defines the drills supported by that session's evidence.
 3. Coach sends the prepared measurements and drill choices to Nemotron through Token Factory. The input can include per-shot and assistance details, not only aggregate statistics.
-4. The requested response is a JSON object containing only `drill_id`.
-5. Code checks the response schema and whether the selected drill is eligible. An invalid or truncated selection is retried once; repeated invalid output falls back to a local report. Connection/authentication failures also preserve local measured feedback with an error message.
-6. Coach renders locally defined instructions and measured explanations. Free-form model claims are not displayed as measured facts.
+4. The requested response contains `feedback`, `possible_reason`, and `next_drill`: natural coaching, a clearly labelled hypothesis, and an actionable experiment.
+5. Code checks the response structure and completeness. Invalid or truncated output is retried once, then falls back to a clearly labelled local report. These checks do not prove the AI interpretation is correct.
+6. Code renders measured statistics and chronological comparisons separately from AI interpretation and possible explanations. AI suggestions are prompted to use only controls available in the game. The existing exports do not record mode/sensitivity, so the comparison cannot establish matched conditions or improved skill.
 
-**The model does not control the camera or fire shots.** The proximity and RMB helpers are Unity algorithms. Nemotron's role is constrained exercise selection, rather than unrestricted diagnosis or autonomous gameplay.
+**The model does not control the camera or fire shots.** The proximity and RMB helpers are Unity algorithms. Nemotron provides coaching language and training suggestions. Possible causes are hypotheses to test, not measured diagnoses or autonomous gameplay.
 
 ## Interpreting the measurements
 

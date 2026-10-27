@@ -21,8 +21,9 @@ class AssistAnalysisTests(unittest.TestCase):
         self.assertEqual(summary['acquisitions'],0)
         self.assertIsNone(summary['mean_entry_error_deg'])
     def test_analysis_prompt_requires_assist_measurements_and_skill_distinction(self):
-        self.assertIn('allowed_drills',SYSTEM_PROMPT)
-        self.assertIn('Do not write statistics',SYSTEM_PROMPT)
+        self.assertIn('Only use supplied measurements',SYSTEM_PROMPT)
+        self.assertIn('not shot errors or unaided skill',SYSTEM_PROMPT)
+        self.assertIn('Possible_reason',SYSTEM_PROMPT)
 
     def test_first_settle_is_distinct_from_end_residual_and_invalid_values(self):
         records = [dict(time_to_settle_ms=100, remaining_error_deg=3.4),

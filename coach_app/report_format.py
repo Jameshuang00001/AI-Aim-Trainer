@@ -2,6 +2,7 @@
 
 import math
 import re
+from statistics import median, quantiles
 from typing import Any
 
 SECTIONS = ("Session Summary", "Strengths", "Weaknesses", "Next Drill")
@@ -138,15 +139,58 @@ def complete_report(report: str, session: dict[str, Any], require_ai: bool = Fal
     return "\n\n".join(output)
 
 
-# Only these drills can reach the UI. AI selects an eligible ID; it cannot write claims.
-def allowed_drills(session):
+def hit_timing_summary(session):
+    values = sorted(number(x.get("reaction_ms")) for x in session.get("shots_detail", [])
+                    if isinstance(x, dict) and x.get("hit") is True and number(x.get("reaction_ms")) > 0)
+    if len(values) < 10:
+        return None
+    lower, _, upper = quantiles(values, n=4, method="inclusive")
+    return {"count": len(values), "median": median(values), "lower": lower, "upper": upper}
+
+
+# Eligibility and rationale are computed locally; the model chooses among these only.
+def drill_options(session):
     data = prepare_session(session)
-    drills = {"baseline": "Keep the same target mode and sensitivity. Turn assistance off and take 20 deliberate shots. Record accuracy and average target-to-hit time as a manual baseline; this time includes finding and aiming at targets."}
-    if data.get("aim_correction_summary", {}).get("acquisitions", 0):
-        drills["assist_comparison"] = "Keep the same target mode and sensitivity. Start a fresh session with assistance off and take 20 shots. Compare hit rate with this assisted session to see how results differ without help. Do not compare correction errors: they are not recorded when assistance is off."
-    if data["misses"] > 0:
-        drills["deliberate_shots"] = "Keep the same target mode and sensitivity, turn assistance off, and take 20 single shots. Place the crosshair on the head before each click. Compare misses and average target-to-hit time with this session; this tests a more deliberate approach, not a diagnosed cause of the misses."
-    return drills
+    shots, hits, misses = data["shots"], data["hits"], data["misses"]
+    correction = data.get("aim_correction_summary", {})
+    assisted = correction.get("acquisitions", 0) > 0
+    prefix = "Keep the same target mode and sensitivity. Start a fresh session with assistance off. "
+    options = {}
+    def add(key, evidence, instruction):
+        options[key] = {"evidence": evidence, "instruction": prefix + instruction}
+    if shots < 20:
+        add("baseline", f"Only {shots} shots are recorded; a longer manual sample is useful before choosing a narrower exercise.",
+            "Take 20 deliberate shots. Record accuracy and average target-to-hit time as a manual baseline; this time includes finding and aiming at targets.")
+    if assisted:
+        entry, end = correction.get("mean_entry_error_deg"), correction.get("mean_residual_deg")
+        evidence = f"This session contains {correction['acquisitions']} assistance segments, so its accuracy includes help."
+        if entry is not None and end is not None:
+            evidence += f" Mean gap was {entry:.3f} deg before help and {end:.3f} deg when help ended."
+        add("assist_comparison", evidence,
+            "Take 20 shots. Compare hit rate with this assisted session to see how results differ without help. Do not compare correction errors: they are not recorded when assistance is off. This is a new manual reference, not proof of improvement.")
+    if misses > 0:
+        add("deliberate_shots", f"{misses} of {shots} shots missed. The records do not identify why.",
+            "Take 20 single shots, confirming the crosshair is on the target before clicking. Record misses per 20 shots and average target-to-hit time. Prioritize fewer misses while allowing more aiming time. This tests a deliberate approach, not a diagnosed cause.")
+    if assisted and correction.get("acquisitions", 0) >= 10 and correction.get("mean_entry_error_deg") is not None and correction["mean_entry_error_deg"] >= 2:
+        add("manual_landing", f"Across {correction['acquisitions']} assistance segments, the mean gap at assist start was {correction['mean_entry_error_deg']:.3f} deg. That measures the starting gap, not its cause or unaided shot error.",
+            "For this exercise, choose Static Targets in Settings. Take 20 single shots without assistance, placing the crosshair on each visible target before firing. Record accuracy and target-to-hit time as a new static manual reference. This practices closing the gap yourself; do not compare unrecorded manual angular errors or treat a change of mode as a matched comparison.")
+    timing = hit_timing_summary(session)
+    if not assisted and timing:
+        middle, slow, fast = timing["median"], timing["upper"], timing["lower"]
+        if fast > 0 and slow >= fast * 1.5:
+            add("steady_acquisition", f"Across {timing['count']} timed hits, the middle half spans {fast:.0f}–{slow:.0f} ms; acquisition time varies. The cause is unknown.",
+                "Take 20 shots with a repeatable sequence: find the target, align, then click. Avoid imposing a fixed firing interval. Compare the spread of timed hits in the next report, alongside accuracy; do not trade accuracy for speed.")
+        if shots >= 20 and hits / max(shots, 1) >= .9:
+            add("controlled_pace", f"You hit {hits}/{shots} shots without recorded assistance. Median target-to-hit time was {middle:.0f} ms across {timing['count']} timed hits.",
+                "Take 20 shots, aiming to acquire targets a little sooner while keeping at least this session's hit rate. Compare accuracy and median target-to-hit time in the next report. If accuracy falls, return to a deliberate pace; this is an experiment, not a claim that your reactions are slow.")
+    if not options:
+        add("baseline", f"This session records {shots} shots. No more specific supported exercise is eligible.",
+            "Take 20 deliberate shots and record accuracy and average target-to-hit time as a manual reference.")
+    return options
+
+
+def allowed_drills(session):
+    return {key: value["instruction"] for key, value in drill_options(session).items()}
 
 
 def checked_drill(response, session):
@@ -160,7 +204,7 @@ def checked_drill(response, session):
     return drill_id
 
 
-def measured_report(session, drill_id=None):
+def measured_report(session, drill_id=None, source=None):
     """All prose is locally grounded; no free-form model text is rendered."""
     data = prepare_session(session)
     # Reuse only the deterministic summary, never model-supplied interpretation.
@@ -183,10 +227,70 @@ def measured_report(session, drill_id=None):
                        "not improvement over earlier sessions.")
         limitation = ("No correction measurements are available. Hits and misses alone cannot explain aim direction or the cause of a miss. "
                       "Average target-to-hit time includes searching and aiming; it is not a pure reflex test.")
+    options = drill_options(session)
     drills = allowed_drills(session)
     if drill_id is not None and drill_id not in drills:
         raise ValueError("Drill does not match session evidence")
-    drill = ("AI-selected, program-checked exercise: " + drills[drill_id] if drill_id else
+    drill = ("AI-selected, program-checked exercise: " + drills[drill_id] + "\n\nWhy this exercise:\n" + options[drill_id]["evidence"] if drill_id else
              "No validated AI exercise is available. The measurements and explanations above are still available; retry analysis for a suggestion.")
-    return ("Session Summary:\n" + "\n".join(summary) + "\n\nWhat the data shows:\n" + observation +
+    timing = hit_timing_summary(session)
+    if timing:
+        observation += (f" Across {timing['count']} timed hits, median target-to-hit time was {timing['median']:.0f} ms; "
+                        f"the middle half was {timing['lower']:.0f}–{timing['upper']:.0f} ms.")
+    return (("Analysis source: " + source + "\n\n" if source else "") + "Session Summary:\n" + "\n".join(summary) + "\n\nWhat the data shows:\n" + observation +
             "\n\nWhat it cannot tell us:\n" + limitation + "\n\nNext Drill:\n" + drill)
+
+
+def session_comparison(session, previous=None):
+    """Measured changes, not a claim that two training conditions were matched."""
+    if not previous:
+        return {"available": False, "explanation": "No earlier completed session is available in this session folder."}
+    current_shots, previous_shots = number(session.get("shots")), number(previous.get("shots"))
+    if current_shots <= 0 or previous_shots <= 0:
+        return {"available": False, "explanation": "Both sessions need shots before accuracy can be compared."}
+    current_hits, previous_hits = number(session.get("hits")), number(previous.get("hits"))
+    if not (0 <= current_hits <= current_shots and 0 <= previous_hits <= previous_shots):
+        return {"available": False, "explanation": "Shot counts are inconsistent; comparison is unavailable."}
+    before = previous_hits / previous_shots * 100
+    after = current_hits / current_shots * 100
+    delta = after - before
+    change = "rose" if delta > 0 else "fell" if delta < 0 else "was unchanged"
+    text = (f"Accuracy {change}: {before:.1f}% ({int(previous_hits)}/{int(previous_shots)}) in the previous session "
+            f"to {after:.1f}% ({int(current_hits)}/{int(current_shots)}) now; change {delta:+.1f} percentage points.")
+    previous_assist = bool(previous.get("aim_corrections"))
+    current_assist = bool(session.get("aim_corrections"))
+    if previous_assist != current_assist:
+        text += " Assistance use differs between sessions, so this is not a like-for-like manual comparison."
+    if min(current_shots, previous_shots) < 20:
+        text += " At least one session has fewer than 20 shots; the difference may reflect a small sample."
+    text += " Target mode and sensitivity were not saved in these exports, so matched conditions and skill improvement cannot be established."
+    return {"available": True, "previous_shots": int(previous_shots), "previous_hits": int(previous_hits),
+            "previous_accuracy": round(before, 3), "current_accuracy": round(after, 3),
+            "accuracy_change_percentage_points": round(delta, 3),
+            "previous_assistance_recorded": previous_assist, "current_assistance_recorded": current_assist,
+            "previous_avg_target_to_hit_ms": number(previous.get("avg_reaction_ms")),
+            "current_avg_target_to_hit_ms": number(session.get("avg_reaction_ms")), "explanation": text}
+
+
+def checked_coaching(response):
+    """Light structural checks; wording and exercise choice belong to the model."""
+    import json
+    value = json.loads(response)
+    required = {"feedback", "possible_reason", "next_drill"}
+    if not isinstance(value, dict) or set(value) != required:
+        raise ValueError("Expected feedback, possible_reason and next_drill")
+    for key in required:
+        if not isinstance(value[key], str) or not value[key].strip() or len(value[key]) > 2200:
+            raise ValueError("Incomplete or oversized coaching text")
+    return {key: value[key].strip() for key in required}
+
+
+def conversational_report(session, notes, previous=None, source=None):
+    # Preserve measured facts, replace repetitive stock interpretation with AI prose.
+    summary = "\n".join(parse_sections(complete_report("", session))["Session Summary"])
+    comparison = session_comparison(session, previous)
+    return (("Analysis source: " + source + "\n\n" if source else "") +
+            "Session Summary:\n" + summary + "\n\nCompared with your previous session:\n" + comparison["explanation"] +
+            "\n\nCoach feedback (AI interpretation):\n" + notes["feedback"] +
+            "\n\nPossible explanation (hypothesis, not a measured cause):\n" + notes["possible_reason"] +
+            "\n\nTry this next (AI suggestion):\n" + notes["next_drill"])

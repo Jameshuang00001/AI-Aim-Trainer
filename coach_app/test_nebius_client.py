@@ -22,6 +22,9 @@ class NebiusClientTests(unittest.TestCase):
                        aim_corrections=[dict(initial_error_deg=4.312, remaining_error_deg=1.105)])
         report, client = self.run_model([('{"drill_id":"assist_comparison"}', 'stop')], session)
         self.assertIn('4.312 to 1.105 deg', report)
+        self.assertIn('Analysis source: Online NVIDIA Nemotron via Nebius', report)
+        self.assertIn('validated exercise: assist_comparison', report)
+        self.assertIn('Why this exercise:', report)
         self.assertIn('not improvement in manual skill', report)
         self.assertIn('Do not compare correction errors', report)
         self.assertNotIn('stable settling', report)
@@ -35,6 +38,7 @@ class NebiusClientTests(unittest.TestCase):
         report, client = self.run_model([(bad, 'stop'), (bad, 'stop')])
         self.assertEqual(client.chat.completions.create.call_count, 2)
         self.assertIn('No validated AI exercise', report)
+        self.assertIn('Local fallback', report)
         self.assertNotIn('precise hand-eye', report)
         self.assertIn('Session Summary:', report)
 
@@ -46,6 +50,7 @@ class NebiusClientTests(unittest.TestCase):
     def test_truncated_valid_json_is_rejected(self):
         report, _ = self.run_model([('{"drill_id":"baseline"}', 'length')]*2)
         self.assertIn('No validated AI exercise', report)
+        self.assertIn('Local fallback', report)
 
     def test_drills_require_evidence_and_exact_schema(self):
         for response in ['{"drill_id":"assist_comparison"}', '{"drill_id":"deliberate_shots"}',

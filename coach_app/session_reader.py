@@ -47,3 +47,32 @@ def read_session(path: str | Path) -> dict[str, Any]:
     if not isinstance(data["shots_detail"], list):
         raise ValueError("shots_detail must be an array.")
     return data
+
+
+def find_previous_session(current, path):
+    """Compare distinct completed sessions chronologically, never file write times."""
+    from datetime import datetime, timezone
+    def timestamp(value):
+        if not isinstance(value, str):
+            raise ValueError("Missing timestamp")
+        result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if result.tzinfo is None:
+            raise ValueError("Timestamp has no timezone")
+        return result.astimezone(timezone.utc)
+    try:
+        current_start = timestamp(current.get("started_at"))
+    except (ValueError, TypeError):
+        return None
+    folder = Path(path).parent
+    candidates = []
+    for file in folder.glob("*.json"):
+        try:
+            other = read_session(file)
+            if not other.get("session_id") or other["session_id"] == current.get("session_id"):
+                continue
+            start, end = timestamp(other.get("started_at")), timestamp(other.get("ended_at"))
+            if start < end <= current_start:
+                candidates.append((end, start, file.name, other))
+        except (OSError, ValueError, TypeError):
+            continue
+    return max(candidates, key=lambda x: x[:3])[3] if candidates else None

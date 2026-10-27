@@ -9,7 +9,7 @@ from coach_app.nebius_client import analyze_session
 from coach_app.credentials import CredentialError, save_api_key
 from coach_app.report_format import prepare_session, measured_report
 from coach_app.macos_window import FloatingWindowPolicy
-from coach_app.session_reader import read_session, select_session_file, find_latest_session
+from coach_app.session_reader import read_session, select_session_file, find_latest_session, find_previous_session
 
 class CoachWindow:
     def __init__(self, root, session_path=None, commands=None, server=None):
@@ -151,8 +151,10 @@ class CoachWindow:
         self.show_window()
         self.status.set("Analyzing session...")
         def worker():
-            try: result = analyze_session(session)
-            except Exception as error: result = measured_report(session) + "\n\nAnalysis unavailable: " + str(error)
+            try:
+                previous = find_previous_session(session, path)
+                result = analyze_session(session, previous)
+            except Exception as error: result = measured_report(session, source="Local fallback — online analysis unavailable.") + "\n\nAnalysis unavailable: " + str(error)
             self.results.put(result)
         threading.Thread(target=worker, daemon=True).start()
     def poll_results(self):
